@@ -30,7 +30,7 @@ def connection_details(vendor, model):
 
     usb_devices = run_bash_cmd(['lsusb'])
 
-    # TODO: this assumes there is only one such device connected
+    # TODO: this assumes there is only one `vendor:model` device connected
     for device_info in usb_devices.split('\n'):
         if vendor_pattern.search(device_info) is None:
             continue
@@ -38,10 +38,10 @@ def connection_details(vendor, model):
         if model_pattern.search(device_info) is None:
             continue
 
-        bus = device_info[4:7]
+        usb_bus = device_info[4:7]
         device = device_info[15:18]
 
-        return bus, device
+        return usb_bus, device
 
     else:
         exc_msg = 'Device "{v} {m}" not found'.format(v=vendor, m=model)
