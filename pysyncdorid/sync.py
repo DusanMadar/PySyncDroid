@@ -118,7 +118,7 @@ class Sync(object):
             abs_dst_dir_pth = os.path.join(self.destination, rel_src_dir_pth)
 
             current_dir = {}
-            current_dir['rel_src_dir'] = rel_src_dir_pth
+            current_dir['abs_src_dir'] = root
             current_dir['abs_dst_dir'] = abs_dst_dir_pth
             current_dir['abs_fls_map'] = []
 
