@@ -52,3 +52,17 @@ def cp(src, dst):
 
     """
     run_bash_cmd(['gvfs-copy', src, dst])
+
+
+def mv(src, dst):
+    """
+    mv
+
+    :argument src: source file/directory to be copied
+    :type src: str
+    :argument dst: destination file/directory
+    :type dst: str
+
+    """
+    cp(src, dst)
+    rm(src)
