@@ -2,6 +2,7 @@
 
 
 import os
+import time
 import errno
 import pytest
 import random
@@ -13,6 +14,7 @@ import tempfile
 from pysyncdorid.sync import Sync
 
 from pysyncdorid import utils_gvfs as gvfs
+from pysyncdorid.utils import REMOVE, SYNCHRONIZE
 from pysyncdorid.exceptions import DeviceException
 from pysyncdorid.find_device import connection_details, get_mtp_path
 
@@ -279,10 +281,10 @@ def test_sync_to_device(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
     """
     Test if Sync.sync() really sync files from computer to device
     """
+    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
+
     sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST)
     sync.sync()
-
-    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
 
     synced_files = os.listdir(sync.destination)
     assert synced_files
@@ -330,3 +332,98 @@ def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
         synced_file = os.path.basename(synced_file)
 
         assert synced_file in tmpfiles_names
+
+
+@pytest.mark.parametrize("unmatched_action", [REMOVE, SYNCHRONIZE])
+@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
+def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
+                                  unmatched_action):
+    """
+    :unmatched_action == SYNCHRONIZE
+
+    Test if Sync.sync() really sync files from computer to device and sync
+    back to computer file(s) that are only on the device.
+
+
+    :unmatched_action == REMOVE
+
+    Test if Sync.sync() really sync files from computer to device and remove
+    files that are only on the device.
+    """
+    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
+
+    #
+    # create parent directory and copy a new file to the device
+    # destination directory; this copied file will be the unmatched file, i.e.
+    # a file that is present only in the destination directory
+    unmatched = 'test.test'
+
+    dst_pth = os.path.join(mtp, DEVICE_DESTINATION_TEST)
+    gvfs.mkdir(dst_pth)
+
+    dst_file = os.path.join(dst_pth, unmatched)
+    gvfs.cp(src=COMPUTER_SOURCE_FILE, dst=dst_file)
+
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST, unmatched=unmatched_action)  # NOQA
+    sync.sync()
+
+    #
+    # exclude the unmatched file from synchronized files as it was already in
+    # the destination directory
+    synced_files = [syncf for syncf in os.listdir(sync.destination)
+                    if syncf != unmatched]
+    assert synced_files
+
+    for synced_file in synced_files:
+        synced_file = os.path.basename(synced_file)
+
+        assert synced_file in tmpfiles_names
+
+    #
+    # test if unmatched_action works as expected
+    if unmatched_action == SYNCHRONIZE:
+        # unmatched file should be synchronized to the source directory
+        assert unmatched in os.listdir(sync.source)
+    elif unmatched_action == REMOVE:
+        # unmatched file should be removed from the destination directory
+        assert unmatched not in os.listdir(sync.destination)
+
+
+@pytest.mark.parametrize("overwrite", [True, False])
+@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
+def test_sync_to_device_overwrite(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
+                                  overwrite):
+    """
+    :overwrite == True
+
+    Test if Sync.sync() overwrites existing files
+
+
+    :overwrite == False
+
+    Test if Sync.sync() does not overwrite existing files
+    """
+    def _get_modification_times():
+        sync_dict = {}
+
+        for synced_file in os.listdir(sync.destination):
+            abs_pth = os.path.join(sync.destination, synced_file)
+            sync_dict[synced_file] = time.ctime(os.path.getmtime(abs_pth))
+
+            return sync_dict
+
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST, overwrite_existing=overwrite)  # NOQA
+
+    sync.sync()
+    first_sync = _get_modification_times()
+
+    time.sleep(2)
+
+    sync.sync()
+    second_sync = _get_modification_times()
+
+    for synced_file in first_sync:
+        if overwrite:
+            assert first_sync[synced_file] < second_sync[synced_file]
+        else:
+            assert first_sync[synced_file] == second_sync[synced_file]
