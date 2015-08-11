@@ -8,9 +8,12 @@ import os
 
 import pysyncdorid.utils_gvfs as gvfs
 
+from pysyncdorid.utils import IGNORE, REMOVE, SYNCHRONIZE
+
 
 class Sync(object):
-    def __init__(self, mtp, source, destination, overwrite_existing=False):
+    def __init__(self, mtp, source, destination,
+                 unmatched=IGNORE, overwrite_existing=False):
         """
         Class for synchronizing directories between a computer and an Android
         device or vice versa.
@@ -21,6 +24,8 @@ class Sync(object):
         :type source: str
         :argument destination: path to the sync destination directory
         :type destination: str
+        :argument unmatched: unmatched files action
+        :type unmatched: str
         :argument overwrite_existing: flag to overwrite existing files
         :type overwrite_existing: bool
 
@@ -29,13 +34,12 @@ class Sync(object):
         self.source = self._get_source_abs(source)
         self.destination = self._get_destination_abs(destination)
 
-        # TODO: need to implement these
-        self.manage_unmatched = False
-        self.overwrite_existing = False
+        self.unmatched = unmatched
+        self.overwrite_existing = overwrite_existing
 
     def _get_source_abs(self, source):
         """
-        Create source absolute path.
+        Create source directory absolute path.
 
         Make sure that the source exists and is a directory.
 
@@ -72,7 +76,7 @@ class Sync(object):
 
     def _get_destination_abs(self, destination):
         """
-        Create destination absolute path.
+        Create destination directory absolute path.
 
         #NOTE: implementation does not allow device only sync, i.e. that both
         #NOTE: source and destination are on the device
@@ -158,8 +162,23 @@ class Sync(object):
 
                 gvfs.cp(src, dst)
 
+            # skip any other actions is unmatched files are ignored
+            if self.unmatched == IGNORE:
+                continue
+
             # manage files that were already in the destination directory
-            # but in the source directory
-            if parent_files:
-                # TODO:
-                pass
+            # but are missing in the source directory
+            for unmatched_file in parent_files:
+                if self.unmatched == REMOVE:
+                    gvfs.rm(unmatched_file)
+
+                elif self.unmatched == SYNCHRONIZE:
+                    # revert the synchronization
+                    self.source, self.destination = self.destination, self.source  # NOQA
+
+                    # ignore everything but files synchronizing to source
+                    self.unmatched = IGNORE
+                    self.overwrite_existing = False
+
+                    # do it
+                    self.sync()
