@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# packaging directories
+build/
+dist/
+*.egg-info/
+
+# C extensions
+*.so
+
+# virtualenv folder
+venv/
+
+# eclipse project files
+.project
+.pydevproject
+.settings/
+
+# backup files
+*~
