@@ -1,1 +1,1 @@
-import pysyncdorid
+import pysyncdroid

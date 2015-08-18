@@ -6,9 +6,9 @@
 
 import os
 
-import pysyncdorid.utils_gvfs as gvfs
+import pysyncdroid.utils_gvfs as gvfs
 
-from pysyncdorid.utils import IGNORE, REMOVE, SYNCHRONIZE
+from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE
 
 
 class Sync(object):

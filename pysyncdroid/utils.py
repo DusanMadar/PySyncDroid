@@ -3,7 +3,7 @@
 
 import subprocess
 
-from pysyncdorid.exceptions import BashException
+from pysyncdroid.exceptions import BashException
 
 
 #: constants

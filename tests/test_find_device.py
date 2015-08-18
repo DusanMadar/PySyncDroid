@@ -3,8 +3,8 @@
 
 import pytest
 
-from pysyncdorid.exceptions import DeviceException
-from pysyncdorid.find_device import connection_details, get_mtp_path
+from pysyncdroid.exceptions import DeviceException
+from pysyncdroid.find_device import connection_details, get_mtp_path
 
 
 @pytest.fixture

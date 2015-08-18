@@ -3,8 +3,8 @@
 
 import pytest
 
-from pysyncdorid.utils import run_bash_cmd
-from pysyncdorid.exceptions import BashException
+from pysyncdroid.utils import run_bash_cmd
+from pysyncdroid.exceptions import BashException
 
 
 def test_run_bash_cmd_oserror():

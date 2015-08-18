@@ -11,12 +11,12 @@ import shutil
 import getpass
 import tempfile
 
-from pysyncdorid.sync import Sync
+from pysyncdroid.sync import Sync
 
-from pysyncdorid import utils_gvfs as gvfs
-from pysyncdorid.utils import REMOVE, SYNCHRONIZE
-from pysyncdorid.exceptions import DeviceException
-from pysyncdorid.find_device import connection_details, get_mtp_path
+from pysyncdroid import utils_gvfs as gvfs
+from pysyncdroid.utils import REMOVE, SYNCHRONIZE
+from pysyncdroid.exceptions import DeviceException
+from pysyncdroid.find_device import connection_details, get_mtp_path
 
 
 #: Constants

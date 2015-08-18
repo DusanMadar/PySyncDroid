@@ -4,8 +4,8 @@
 import os
 import re
 
-from pysyncdorid.utils import run_bash_cmd
-from pysyncdorid.exceptions import DeviceException
+from pysyncdroid.utils import run_bash_cmd
+from pysyncdroid.exceptions import DeviceException
 
 
 #:

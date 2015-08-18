@@ -1,7 +1,7 @@
 """Python wrappers for gvfs-tools bash commands"""
 
 
-from pysyncdorid.utils import run_bash_cmd
+from pysyncdroid.utils import run_bash_cmd
 
 
 def ls(path):
