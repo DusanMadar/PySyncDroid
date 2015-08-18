@@ -13,7 +13,7 @@ import tempfile
 
 from pysyncdroid.sync import Sync
 
-from pysyncdroid import gvfs as gvfs
+from pysyncdroid import gvfs
 from pysyncdroid.utils import REMOVE, SYNCHRONIZE
 from pysyncdroid.exceptions import DeviceException
 from pysyncdroid.find_device import connection_details, get_mtp_path
