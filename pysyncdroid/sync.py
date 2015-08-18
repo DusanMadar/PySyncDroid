@@ -6,7 +6,7 @@
 
 import os
 
-import pysyncdroid.utils_gvfs as gvfs
+import pysyncdroid.gvfs as gvfs
 
 from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE
 
