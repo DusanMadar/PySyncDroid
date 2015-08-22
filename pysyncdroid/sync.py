@@ -12,7 +12,8 @@ from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE
 
 class Sync(object):
     def __init__(self, mtp, source, destination,
-                 unmatched=IGNORE, overwrite_existing=False):
+                 unmatched=IGNORE, overwrite_existing=False,
+                 verbose=False):
         """
         Class for synchronizing directories between a computer and an Android
         device or vice versa.
@@ -27,14 +28,29 @@ class Sync(object):
         :type unmatched: str
         :argument overwrite_existing: flag to overwrite existing files
         :type overwrite_existing: bool
+        :argument verbose: flag to display what is going on
+        :type verbose: bool
 
         """
         self.mtp = mtp
         self.source = self._get_source_abs(source)
         self.destination = self._get_destination_abs(destination)
 
+        self.verbose = verbose
         self.unmatched = unmatched
         self.overwrite_existing = overwrite_existing
+
+    def _verbose(self, message):
+        """
+        Manage printing action messages, i.e. print what is going on if the
+        'verbose' flag is set
+
+        :argument message: message to print
+        :type message: str
+
+        """
+        if self.verbose:
+            print message
 
     def _get_source_abs(self, source):
         """
@@ -145,6 +161,7 @@ class Sync(object):
 
             # ensure parent directory tree
             if not os.path.exists(parent_dir):
+                self._verbose('Creating directory {d}'.format(d=parent_dir))
                 gvfs.mkdir(parent_dir)
 
             # get already existing files if any
@@ -159,6 +176,7 @@ class Sync(object):
                     if not self.overwrite_existing:
                         continue
 
+                self._verbose('Copying {s} to {d} '.format(s=src, d=dst))
                 gvfs.cp(src, dst)
 
             # skip any other actions is unmatched files are ignored
@@ -169,6 +187,7 @@ class Sync(object):
             # but are missing in the source directory
             for unmatched_file in parent_files:
                 if self.unmatched == REMOVE:
+                    self._verbose('Removing {u}'.format(u=unmatched_file))
                     gvfs.rm(unmatched_file)
 
                 elif self.unmatched == SYNCHRONIZE:

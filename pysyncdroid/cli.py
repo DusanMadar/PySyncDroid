@@ -27,10 +27,13 @@ parser.add_argument('-d', '--destination', required=True,
                     help='Destination directory')
 
 # optional arguments
+parser.add_argument('-v', '--verbose', action='store_true', default=False,
+                    help='Display actions; not used by default')
 parser.add_argument('-u', '--unmatched', choices=[IGNORE, REMOVE, SYNCHRONIZE],
-                    help='Unmatched files action', default=IGNORE)
+                    help='Unmatched files action; ignoring by default',
+                    default=IGNORE)
 parser.add_argument('-o', '--overwrite', action='store_true', default=False,
-                    help='Flag to overwrite existing files')
+                    help='Overwrite existing files; not used by default')
 
 
 def main():
@@ -41,7 +44,8 @@ def main():
     mtp = find_device.get_mtp_path(usb_bus, device)
 
     sync = Sync(mtp=mtp, source=args.source, destination=args.destination,
-                unmatched=args.unmatched, overwrite_existing=args.overwrite)
+                unmatched=args.unmatched, overwrite_existing=args.overwrite,
+                verbose=args.verbose)
     sync.sync()
 
 
