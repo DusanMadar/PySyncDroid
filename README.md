@@ -46,6 +46,7 @@ python setup.py install
 1. Connect your Android device with an USB cable to your computer
 2. Unlock your device to notify the computer about its presence
     * unlock is conducted only once and it is **not necessary** that the device stays unlocked during the synchronizing process
+    * `Developer Options` doesn't have to be enabled on the device
 3. Make sure the device is connected as a **Media device (MTP)**
    * you should now be able to see your device in the *computer file manager*
 4. Synchronize using PySyncDroid
