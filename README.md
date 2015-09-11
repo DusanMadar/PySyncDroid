@@ -71,7 +71,6 @@ dm@Z580:~$ pysyncdroid -ov -V samsung -M gt-i9300 -s Phone/Music -d Music -u rem
 ## Limitations
 * `source` and `destination` must be a path to a **directory**
 * `single file` synchronization is **not supported**
-* `computer path` **expansion** (resolving "~", "..", ...) is **not supported**; use absolute paths or relative paths to a child directory from the current working directory
 * `device path` must be a relative path starting with one of the device directories visible in the computer file manager, e.g.:
     * *Card/Music*
     * *Phone/DCIM*
