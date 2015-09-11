@@ -7,7 +7,7 @@
 import os
 
 from pysyncdroid import gvfs
-from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE
+from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, readlink
 
 
 class Sync(object):
@@ -69,6 +69,8 @@ class Sync(object):
         :returns str
 
         """
+        source = readlink(source)
+
         for prefix in (os.getcwd(), self.mtp):
             # Get absolute path for the specified source
             # Prepend prefix if given source is a relative path
@@ -102,6 +104,8 @@ class Sync(object):
         :returns str
 
         """
+        destination = readlink(destination)
+
         if 'mtp:host' not in self.source:
             # device is destination
             abs_destination = os.path.join(self.mtp, destination)
