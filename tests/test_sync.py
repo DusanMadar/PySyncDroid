@@ -26,7 +26,7 @@ CURRENT_USER = getpass.getuser()
 # tmpdir
 PYSYNCDROID = 'pysyncdroid_'
 
-COMPUTER_HOME = '/home/{u}/'.format(u=CURRENT_USER)
+COMPUTER_HOME = '/home/{u}'.format(u=CURRENT_USER)
 COMPUTER_SOURCE = os.path.join(COMPUTER_HOME, 'Music')
 COMPUTER_SOURCE_FILE = os.path.join(COMPUTER_HOME, '.bashrc')
 
@@ -194,10 +194,32 @@ def test_source_exists_on_computer_relative(cd_home, cd_back):
     Test if Sync is able to initialize; i.e. source exists and is a directory
     even if is specified as a relative path which is OK in this context
     """
-    music = 'Music/'
+    music = 'Music'
 
     sync = Sync('', music, '')
     assert sync.source == os.path.join(COMPUTER_HOME, music)
+
+
+def test_source_exists_on_computer_relative2(cd_home, cd_back):
+    """
+    Test if Sync is able to initialize; i.e. source exists and is a directory
+    even if is specified as a relative path
+    """
+    parent = '..'
+
+    sync = Sync('', parent, '')
+    assert sync.source == os.path.dirname(COMPUTER_HOME)
+
+
+def test_source_exists_on_computer_relative3(cd_home, cd_back):
+    """
+    Test if Sync is able to initialize; i.e. source exists and is a directory
+    even if is specified as a relative path
+    """
+    parent = os.sep
+
+    sync = Sync('', parent, '')
+    assert sync.source == os.sep
 
 
 def test_source_not_exists_on_computer_relative():
@@ -211,15 +233,12 @@ def test_source_not_exists_on_computer_relative():
     assert NOT_EXISTS in str(exc.value)
 
 
-def test_source_not_exists_on_computer_expand():
+def test_source_expand():
     """
-    Test if Sync is not able to initialize; i.e. source doesn't exists as the
-    Sync class does not support expanding paths
+    Test if Sync is able to initialize even if given an expandable path
     """
-    with pytest.raises(OSError) as exc:
-        Sync('', '~/Music', '')
-
-    assert NOT_EXISTS in str(exc.value)
+    sync = Sync('', '~/Music', '')
+    assert sync.source == os.path.join(COMPUTER_HOME, 'Music')
 
 
 def test_source_is_a_file_on_computer():
@@ -249,6 +268,18 @@ def test_destination_should_be_computer(mtp):
     """
     sync = Sync(mtp, DEVICE_SOURCE, '')
     assert sync.destination == os.path.join(CURRENT_DIRECTORY, '')
+
+
+@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
+def test_destination_should_be_computer_relative(mtp):
+    """
+    Test if Sync sets computer as destination if device is the source and the
+    destination is a relative path
+    """
+    parent = '../..'
+
+    sync = Sync(mtp, DEVICE_SOURCE, parent)
+    assert sync.destination == COMPUTER_HOME
 
 
 # paths preparation tests -----------------------------------------------------
