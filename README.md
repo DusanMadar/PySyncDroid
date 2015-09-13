@@ -4,7 +4,7 @@ PySyncDroid is a Python 2.7 powered CLI tool providing a simple way to synchroni
 No special setup is required for the Android device.
 
 ## System requirements
-PySyncDroid leverages `gvfs` and `mtp`.
+PySyncDroid leverages `gvfs`, `mtp` and `readlink`.
 
 ### gvfs
 Here is a list of gvfs related packages I have installed on my system (Ubuntu 14.04 64b):
