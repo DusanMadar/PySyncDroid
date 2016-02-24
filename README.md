@@ -63,7 +63,7 @@ Synchronize contents of the *Rock* directory from computer to the device
 dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -s ~/Music/Rock -d Card/Music/Rock
 ```
 Synchronize contents of the *Music* directory from the device to computer, removing unmatched files (i.e. files, which are present only on computer, but not on the device) and overwriting existing files. Also, display what is going on (notice the `-v` flag).
-Child derictories are automaticaly created in the destination directory (*~/Music*, in this case) as necessary.
+Child directories are automaticaly created in the destination directory (*~/Music*, in this case) as necessary.
 ``` bash
 dm@Z580:~$ pysyncdroid -ov -V samsung -M gt-i9300 -s Phone/Music -d Music -u remove
 ```
