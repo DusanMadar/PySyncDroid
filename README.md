@@ -61,7 +61,7 @@ For more details about how to use PySyncDroid and what options are available
 ``` bash
 pysyncdroid -h
 ```
-Synchronize contents of the *Rock* directory from computer to the device (`vendor` and `model` are case insensitive)
+Synchronize contents of the *Rock* directory from computer to the device (`vendor` and `model` names are *case insensitive*)
 ``` bash
 dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -s ~/Music/Rock -d Card/Music/Rock
 ```
