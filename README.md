@@ -61,7 +61,7 @@ For more details about how to use PySyncDroid and what options are available
 ``` bash
 pysyncdroid -h
 ```
-Synchronize contents of the *Rock* directory from computer to the device
+Synchronize contents of the *Rock* directory from computer to the device (`vendor` and `model` are case insensitive)
 ``` bash
 dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -s ~/Music/Rock -d Card/Music/Rock
 ```
@@ -80,12 +80,15 @@ dm@Z580:~$ pysyncdroid -ov -V samsung -M gt-i9300 -s Phone/Music -d Music -u rem
     * *Tablet/Download*
 
 ### Device not found error
-If you keep getting the following error message:
+If you keep getting the following error message
 
 `pysyncdroid.exceptions.DeviceException: Device "<vendor> <model>" not found`
 
 make sure the device is connected to the computer and you can access it via file manager.
-Run the `lsusb`command and check the output. For Samsung Galaxy SIII I get this:
+Run the `lsusb` command and check the output for desired `vendor` or `model` names. For example, I get the following string for my Samsung Galaxy SIII
 
 `Bus 001 Device 011: ID 04e8:6860 Samsung Electronics Co., Ltd GT-I9100 Phone [Galaxy S II], GT-I9300 Phone [Galaxy S III], GT-P7500 [Galaxy Tab 10.1]`
 
+and therefore I use `PySyncDroid` as
+
+`pysyncdroid -V samsung -M gt-i9300`
