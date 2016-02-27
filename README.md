@@ -71,14 +71,6 @@ Child directories are automaticaly created in the destination directory (*~/Musi
 dm@Z580:~$ pysyncdroid -ov -V samsung -M gt-i9300 -s Phone/Music -d Music -u remove
 ```
 
-## Limitations
-* `source` and `destination` must be a path to a **directory**
-* `single file` synchronization is **not supported**
-* `device path` must be a **relative path** starting with one of the device directories visible in the computer file manager, e.g.:
-    * *Card/Music*
-    * *Phone/DCIM*
-    * *Tablet/Download*
-
 ### Device not found error
 If you keep getting the following error message
 
@@ -92,3 +84,11 @@ Run the `lsusb` command and check the output for desired `vendor` or `model` nam
 and therefore I use `PySyncDroid` as
 
 `pysyncdroid -V samsung -M gt-i9300`
+
+## Limitations
+* `source` and `destination` must be a path to a **directory**
+* `single file` synchronization is **not supported**
+* `device path` must be a **relative path** starting with one of the device directories visible in the computer file manager, e.g.:
+    * *Card/Music*
+    * *Phone/DCIM*
+    * *Tablet/Download*
