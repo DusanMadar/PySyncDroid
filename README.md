@@ -4,7 +4,10 @@ PySyncDroid is a Python 2.7 powered CLI tool providing a simple way to synchroni
 No special setup is required for the Android device.
 
 ## System requirements
-PySyncDroid leverages `gvfs`, `mtp` and `readlink`.
+PySyncDroid leverages `lsusb`, `gvfs`, `mtp` and `readlink`.
+
+### lsusb
+Make sure you have `lsusb` installed on your computer as it is used to discover the connected device.
 
 ### gvfs
 Here is a list of gvfs related packages I have installed on my system (Ubuntu 14.04 64b):
@@ -75,3 +78,14 @@ dm@Z580:~$ pysyncdroid -ov -V samsung -M gt-i9300 -s Phone/Music -d Music -u rem
     * *Card/Music*
     * *Phone/DCIM*
     * *Tablet/Download*
+
+### Device not found error
+If you keep getting the following error message:
+
+`pysyncdroid.exceptions.DeviceException: Device "<vendor> <model>" not found`
+
+make sure the device is connected to the computer and you can access it via file manager.
+Run the `lsusb`command and check the output. For Samsung Galaxy SIII I get this:
+
+`Bus 001 Device 011: ID 04e8:6860 Samsung Electronics Co., Ltd GT-I9100 Phone [Galaxy S II], GT-I9300 Phone [Galaxy S III], GT-P7500 [Galaxy Tab 10.1]`
+
