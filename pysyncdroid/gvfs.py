@@ -66,3 +66,14 @@ def mv(src, dst):
     """
     cp(src, dst)
     rm(src)
+
+
+def mount(mtp_url):
+    """
+    mount
+
+    :argument mtp_url: device MTP URL
+    :type mtp_url: str
+
+    """
+    run_bash_cmd(['gvfs-mount', mtp_url])
