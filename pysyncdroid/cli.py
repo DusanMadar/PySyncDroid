@@ -36,18 +36,15 @@ parser.add_argument('-o', '--overwrite', action='store_true', default=False,
                     help='Overwrite existing files; not used by default')
 
 
-def main():
+if __name__ == '__main__':
     args = parser.parse_args()
 
-    usb_bus, device = find_device.connection_details(vendor=args.vendor,
-                                                     model=args.model)
-    mtp = find_device.get_mtp_path(usb_bus, device)
+    usb_bus, device = find_device.get_connection_details(vendor=args.vendor,
+                                                         model=args.model)
+    mtp_details = find_device.get_mtp_details(usb_bus, device)
 
-    sync = Sync(mtp=mtp, source=args.source, destination=args.destination,
+    sync = Sync(mtp_details=mtp_details,
+                source=args.source, destination=args.destination,
                 unmatched=args.unmatched, overwrite_existing=args.overwrite,
                 verbose=args.verbose)
     sync.sync()
-
-
-if __name__ == '__main__':
-    main()
