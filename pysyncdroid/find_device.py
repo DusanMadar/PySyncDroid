@@ -8,17 +8,22 @@ from pysyncdroid.utils import run_bash_cmd
 from pysyncdroid.exceptions import DeviceException
 
 
-#:
-# pattern to find MTP connected devices
+# pattern to locate MTP connected devices via URL
+# b - USB bus ID
+# d - device ID
+MTP_URL_PATTERN = 'mtp://[usb:{b},{d}]/'
+
+
+# pattern to locate MTP connected devices via gvfs
 # u - user ID
 # b - USB bus ID
 # d - device ID
-MTP_PATH_PATTERN = '/run/user/{u}/gvfs/mtp:host=%5Busb%3A{b}%2C{d}%5D'
+MTP_GVFS_PATH_PATTERN = '/run/user/{u}/gvfs/mtp:host=%5Busb%3A{b}%2C{d}%5D'
 
 
-def connection_details(vendor, model):
+def get_connection_details(vendor, model):
     """
-    Get device connection details (USB bus & device numbers).
+    Get device connection details (USB bus & device IDs).
 
     :argument vendor: device vendor name
     :type vendor: str
@@ -47,10 +52,10 @@ def connection_details(vendor, model):
             continue
 
         # yep, USB bus ID and device ID are between these indexes
-        usb_bus = device_info[4:7]
-        device = device_info[15:18]
+        usb_bus_id = device_info[4:7]
+        device_id = device_info[15:18]
 
-        return usb_bus, device
+        return usb_bus_id, device_id
 
     else:
         # exception message base
@@ -68,16 +73,21 @@ def connection_details(vendor, model):
         raise DeviceException(exc_msg)
 
 
-def get_mtp_path(usb_bus, device):
+def get_mtp_details(usb_bus_id, device_id):
     """
-    Get path to the device connected via MTP.
+    Get MTP URL and gvfs path to the device.
 
-    :argument usb_bus: USB bus ID
-    :type usb_bus: str
-    :argument device: device ID
-    :type interface: str
+    :argument usb_bus_id: USB bus ID
+    :type usb_bus_id: str
+    :argument device_id: device ID
+    :type device_id: str
 
-    :returns str
+    :returns tuple
 
     """
-    return MTP_PATH_PATTERN.format(u=os.getuid(), b=usb_bus, d=device)
+    mtp_url = MTP_URL_PATTERN.format(b=usb_bus_id, d=device_id)
+    mtp_gvfs_path = MTP_GVFS_PATH_PATTERN.format(u=os.getuid(),
+                                                 b=usb_bus_id,
+                                                 d=device_id)
+
+    return mtp_url, mtp_gvfs_path
