@@ -11,15 +11,15 @@ from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, readlink
 
 
 class Sync(object):
-    def __init__(self, mtp, source, destination,
+    def __init__(self, mtp_details, source, destination,
                  unmatched=IGNORE, overwrite_existing=False,
                  verbose=False):
         """
         Class for synchronizing directories between a computer and an Android
         device or vice versa.
 
-        :argument mtp: path to the MTP connected device
-        :type mtp: str
+        :argument mtp_details: MTP URL and gvfs path to the device
+        :type mtp_details: tuple
         :argument source: path to the sync source directory
         :type source: str
         :argument destination: path to the sync destination directory
@@ -32,7 +32,8 @@ class Sync(object):
         :type verbose: bool
 
         """
-        self.mtp = mtp
+        self.mtp_url = mtp_details[0]
+        self.mtp_gvfs_path = mtp_details[1]
         self.source = self._get_source_abs(source)
         self.destination = self._get_destination_abs(destination)
 
@@ -71,7 +72,7 @@ class Sync(object):
         """
         source = readlink(source)
 
-        for prefix in (os.getcwd(), self.mtp):
+        for prefix in (os.getcwd(), self.mtp_gvfs_path):
             # Get absolute path for the specified source
             # Prepend prefix if given source is a relative path
             if not os.path.isabs(source):
@@ -108,7 +109,7 @@ class Sync(object):
 
         if 'mtp:host' not in self.source:
             # device is destination
-            abs_destination = os.path.join(self.mtp, destination)
+            abs_destination = os.path.join(self.mtp_gvfs_path, destination)
         else:
             # computer is destination
             if not os.path.isabs(destination):
@@ -126,6 +127,8 @@ class Sync(object):
         :returns list
 
         """
+        self._verbose('Loading the list of files to synchronize')
+
         to_sync = []
 
         for root, _, files in os.walk(self.source):

@@ -16,7 +16,7 @@ from pysyncdroid.sync import Sync
 from pysyncdroid import gvfs
 from pysyncdroid.utils import REMOVE, SYNCHRONIZE
 from pysyncdroid.exceptions import DeviceException
-from pysyncdroid.find_device import connection_details, get_mtp_path
+from pysyncdroid.find_device import get_connection_details, get_mtp_details
 
 
 #: Constants
@@ -37,7 +37,7 @@ DEVICE_SOURCE_FAKE = 'CCard/Music'
 DEVICE_DESTINATION = DEVICE_SOURCE
 DEVICE_DESTINATION_TEST = (DEVICE_DESTINATION + os.sep + PYSYNCDROID +
                            ''.join(random.sample(string.ascii_letters, 6)))
-DEVICE_MTP_FAKE = '/mtp_path'
+DEVICE_MTP_FAKE = ('mtp://[usb:<usb_id>,<device_id>]/', '/mtp_path')
 
 DEVICE_NOT_CONNECTED = "Testing device not connected"
 
@@ -54,7 +54,7 @@ def device_not_connected():
 
     """
     try:
-        connection_details(vendor=DEVICE_VENDOR, model=DEVICE_MODEL)
+        get_connection_details(vendor=DEVICE_VENDOR, model=DEVICE_MODEL)
     except DeviceException:
         device_not_connected = True
     else:
@@ -113,7 +113,7 @@ def tmpdir_device_remove(request, mtp):
 
     """
     def fin():
-        device_destination = os.path.join(mtp, DEVICE_DESTINATION_TEST)
+        device_destination = os.path.join(mtp[1], DEVICE_DESTINATION_TEST)
         gvfs.rm(device_destination)
 
         if os.path.exists(device_destination):
@@ -131,11 +131,11 @@ def mtp():
     :returns str
 
     """
-    usb_bus, device = connection_details(vendor=DEVICE_VENDOR,
-                                         model=DEVICE_MODEL)
-    mtp = get_mtp_path(usb_bus, device)
+    usb_bus, device = get_connection_details(vendor=DEVICE_VENDOR,
+                                             model=DEVICE_MODEL)
+    mtp_details = get_mtp_details(usb_bus, device)
 
-    return mtp
+    return mtp_details
 
 
 @pytest.fixture
@@ -165,7 +165,7 @@ def test_source_exists_on_device(mtp):
     Test if Sync is able to initialize; i.e. source exists and is a directory
     """
     sync = Sync(mtp, DEVICE_SOURCE, '')
-    assert sync.source == os.path.join(mtp, DEVICE_SOURCE)
+    assert sync.source == os.path.join(mtp[1], DEVICE_SOURCE)
 
 
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
@@ -185,7 +185,7 @@ def test_source_exists_on_computer():
     """
     Test if Sync is able to initialize; i.e. source exists and is a directory
     """
-    sync = Sync('', COMPUTER_SOURCE, '')
+    sync = Sync(('', ''), COMPUTER_SOURCE, '')
     assert sync.source == COMPUTER_SOURCE
 
 
@@ -196,7 +196,7 @@ def test_source_exists_on_computer_relative(cd_home, cd_back):
     """
     music = 'Music'
 
-    sync = Sync('', music, '')
+    sync = Sync(('', ''), music, '')
     assert sync.source == os.path.join(COMPUTER_HOME, music)
 
 
@@ -207,7 +207,7 @@ def test_source_exists_on_computer_relative2(cd_home, cd_back):
     """
     parent = '..'
 
-    sync = Sync('', parent, '')
+    sync = Sync(('', ''), parent, '')
     assert sync.source == os.path.dirname(COMPUTER_HOME)
 
 
@@ -218,7 +218,7 @@ def test_source_exists_on_computer_relative3(cd_home, cd_back):
     """
     parent = os.sep
 
-    sync = Sync('', parent, '')
+    sync = Sync(('', ''), parent, '')
     assert sync.source == os.sep
 
 
@@ -228,7 +228,7 @@ def test_source_not_exists_on_computer_relative():
     is specified as a relative path which is wrong in this context
     """
     with pytest.raises(OSError) as exc:
-        Sync('', 'Music/', '')
+        Sync(('', ''), 'Music/', '')
 
     assert NOT_EXISTS in str(exc.value)
 
@@ -237,7 +237,7 @@ def test_source_expand():
     """
     Test if Sync is able to initialize even if given an expandable path
     """
-    sync = Sync('', '~/Music', '')
+    sync = Sync(('', ''), '~/Music', '')
     assert sync.source == os.path.join(COMPUTER_HOME, 'Music')
 
 
@@ -246,7 +246,7 @@ def test_source_is_a_file_on_computer():
     Test if Sync is not able to initialize; i.e. source is a not a directory
     """
     with pytest.raises(OSError) as exc:
-        Sync('', COMPUTER_SOURCE_FILE, '')
+        Sync(('', ''), COMPUTER_SOURCE_FILE, '')
 
     assert NOT_DIRECTORY in str(exc.value)
 
@@ -258,7 +258,7 @@ def test_destination_should_be_device():
     Test if Sync sets device as destination if computer is the source
     """
     sync = Sync(DEVICE_MTP_FAKE, COMPUTER_SOURCE, '')
-    assert sync.destination == os.path.join(DEVICE_MTP_FAKE, '')
+    assert sync.destination == os.path.join(DEVICE_MTP_FAKE[1], '')
 
 
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
@@ -301,7 +301,7 @@ def test_prepare_paths(tmpdir, tmpfiles):
             assert dst.endswith(basename)
 
             assert tmpdir in src
-            assert DEVICE_MTP_FAKE in dst
+            assert DEVICE_MTP_FAKE[1] in dst
             assert DEVICE_DESTINATION in dst
 
 
@@ -335,13 +335,13 @@ def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
 
     #
     # first move tmpfiles to the device
-    device_source = os.path.join(mtp, DEVICE_DESTINATION_TEST)
+    device_source = os.path.join(mtp[1], DEVICE_DESTINATION_TEST)
 
     if not os.path.exists(device_source):
         gvfs.mkdir(device_source)
 
     for tmpfile in tmpfiles:
-        gvfs.mv(tmpfile, os.path.join(mtp, device_source))
+        gvfs.mv(tmpfile, os.path.join(mtp[1], device_source))
 
     moved_files = os.listdir(device_source)
     assert moved_files
@@ -389,7 +389,7 @@ def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
     # a file that is present only in the destination directory
     unmatched = 'test.test'
 
-    dst_pth = os.path.join(mtp, DEVICE_DESTINATION_TEST)
+    dst_pth = os.path.join(mtp[1], DEVICE_DESTINATION_TEST)
     gvfs.mkdir(dst_pth)
 
     dst_file = os.path.join(dst_pth, unmatched)
