@@ -36,7 +36,7 @@ parser.add_argument('-o', '--overwrite', action='store_true', default=False,
                     help='Overwrite existing files; not used by default')
 
 
-if __name__ == '__main__':
+def main():
     args = parser.parse_args()
 
     usb_bus, device = find_device.get_connection_details(vendor=args.vendor,
@@ -48,3 +48,7 @@ if __name__ == '__main__':
                 unmatched=args.unmatched, overwrite_existing=args.overwrite,
                 verbose=args.verbose)
     sync.sync()
+
+
+if __name__ == '__main__':
+    main()
