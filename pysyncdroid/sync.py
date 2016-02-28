@@ -5,8 +5,10 @@
 
 
 import os
+import time
 
 from pysyncdroid import gvfs
+from pysyncdroid import exceptions
 from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, readlink
 
 
@@ -119,6 +121,31 @@ class Sync(object):
 
         return abs_destination
 
+    def gvfs_wrapper(self, func, *args):
+        """
+        Wrap gvfs operations and handle exceptions which can terminate
+        processing.
+
+        Currently handling:
+            Connection reset by peer
+
+        :argument func: gvfs function to be executed
+        :type func: function
+        :argument *args: function's arguments
+        :type *args:
+
+        """
+        try:
+            func(*args)
+        except exceptions.BashException as exc:
+            if exc.message.strip().endswith('Connection reset by peer'):
+                # re-mount and try again
+                gvfs.mount(self.mtp_url)
+                time.sleep(1)  # TODO maybe not necessary
+                func(*args)
+            else:
+                raise
+
     def prepare_paths(self):
         """
         Prepare the list of files (and directories) that are about to be
@@ -127,7 +154,8 @@ class Sync(object):
         :returns list
 
         """
-        self._verbose('Loading the list of files to synchronize')
+        self._verbose('Gathering the list of files to synchronize, '
+                      'this may take a while ...')
 
         to_sync = []
 
@@ -169,7 +197,7 @@ class Sync(object):
             # ensure parent directory tree
             if not os.path.exists(parent_dir):
                 self._verbose('Creating directory {d}'.format(d=parent_dir))
-                gvfs.mkdir(parent_dir)
+                self.gvfs_wrapper(gvfs.mkdir, parent_dir)
 
             # get already existing files if any
             parent_files = set([os.path.join(parent_dir, f)
@@ -183,8 +211,8 @@ class Sync(object):
                     if not self.overwrite_existing:
                         continue
 
-                self._verbose('Copying {s} to {d} '.format(s=src, d=dst))
-                gvfs.cp(src, dst)
+                self._verbose('Copying {s} to {d}'.format(s=src, d=dst))
+                self.gvfs_wrapper(gvfs.cp, src, dst)
 
             # skip any other actions is unmatched files are ignored
             if self.unmatched == IGNORE:
@@ -195,7 +223,7 @@ class Sync(object):
             for unmatched_file in parent_files:
                 if self.unmatched == REMOVE:
                     self._verbose('Removing {u}'.format(u=unmatched_file))
-                    gvfs.rm(unmatched_file)
+                    self.gvfs_wrapper(gvfs.rm, unmatched_file)
 
                 elif self.unmatched == SYNCHRONIZE:
                     # revert the synchronization
