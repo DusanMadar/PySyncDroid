@@ -26,6 +26,7 @@ Utilities as:
  * gvfs-cp
  * gvfs-rm
  * gvfs-mkdir
+ * gvfs-mount
  
 *must* be present on your system and executable from the terminal.
 
