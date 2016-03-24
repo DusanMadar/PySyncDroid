@@ -86,10 +86,16 @@ and therefore I use `PySyncDroid` as
 
 `pysyncdroid -V samsung -M gt-i9300`
 
-## Limitations
+## Limitations & known issues
 * `source` and `destination` must be a path to a **directory**
 * `single file` synchronization is **not supported**
 * `device path` must be a **relative path** starting with one of the device directories visible in the computer file manager, e.g.:
     * *Card/Music*
     * *Phone/DCIM*
     * *Tablet/Download*
+
+### Sync from computer to device
+If the sync process takes a bit longer (10+ minutes), it's very likely that you will get an error like:
+`The name :<name> was not provided by any .service files` or `Message did not receive a reply (timeout by message bus)`.
+
+It seems like *the device drops the MTP connection* after a certain amount of time. Unlocking the device again will reconnect it so you can re-run the last `pysyncdroid` command. It will continue to sync where it left off (assuming you are not using the `-o` flag).
