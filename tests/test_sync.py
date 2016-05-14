@@ -23,20 +23,23 @@ from pysyncdroid.find_device import get_connection_details, get_mtp_details
 CURRENT_DIRECTORY = os.getcwd()
 CURRENT_USER = getpass.getuser()
 
-# tmpdir
+# tmpdir name
 PYSYNCDROID = 'pysyncdroid_'
 
+# computer
 COMPUTER_HOME = '/home/{u}'.format(u=CURRENT_USER)
 COMPUTER_SOURCE = os.path.join(COMPUTER_HOME, 'Music')
 COMPUTER_SOURCE_FILE = os.path.join(COMPUTER_HOME, '.bashrc')
 
+# device
+# NOTE update these constants to match your device name and/or settings
 DEVICE_VENDOR = 'samsung'
-DEVICE_MODEL = 'gt-i9300'
+DEVICE_MODEL = 'galaxy'
 DEVICE_SOURCE = 'Card/Music'
 DEVICE_SOURCE_FAKE = 'CCard/Music'
 DEVICE_DESTINATION = DEVICE_SOURCE
-DEVICE_DESTINATION_TEST = (DEVICE_DESTINATION + os.sep + PYSYNCDROID +
-                           ''.join(random.sample(string.ascii_letters, 6)))
+DEVICE_DESTINATION_TEST_DIR = (DEVICE_DESTINATION + os.sep + PYSYNCDROID +
+                               ''.join(random.sample(string.ascii_letters, 6)))
 DEVICE_MTP_FAKE = ('mtp://[usb:<usb_id>,<device_id>]/', '/mtp_path')
 
 DEVICE_NOT_CONNECTED = "Testing device not connected"
@@ -113,7 +116,7 @@ def tmpdir_device_remove(request, mtp):
 
     """
     def fin():
-        device_destination = os.path.join(mtp[1], DEVICE_DESTINATION_TEST)
+        device_destination = os.path.join(mtp[1], DEVICE_DESTINATION_TEST_DIR)
         gvfs.rm(device_destination)
 
         if os.path.exists(device_destination):
@@ -314,7 +317,7 @@ def test_sync_to_device(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
     """
     tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
 
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST)
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR)
     sync.sync()
 
     synced_files = os.listdir(sync.destination)
@@ -335,7 +338,7 @@ def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
 
     #
     # first move tmpfiles to the device
-    device_source = os.path.join(mtp[1], DEVICE_DESTINATION_TEST)
+    device_source = os.path.join(mtp[1], DEVICE_DESTINATION_TEST_DIR)
 
     if not os.path.exists(device_source):
         gvfs.mkdir(device_source)
@@ -389,13 +392,13 @@ def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
     # a file that is present only in the destination directory
     unmatched = 'test.test'
 
-    dst_pth = os.path.join(mtp[1], DEVICE_DESTINATION_TEST)
+    dst_pth = os.path.join(mtp[1], DEVICE_DESTINATION_TEST_DIR)
     gvfs.mkdir(dst_pth)
 
     dst_file = os.path.join(dst_pth, unmatched)
     gvfs.cp(src=COMPUTER_SOURCE_FILE, dst=dst_file)
 
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST, unmatched=unmatched_action)  # NOQA
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, unmatched=unmatched_action)  # NOQA
     sync.sync()
 
     #
@@ -443,7 +446,7 @@ def test_sync_to_device_overwrite(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
 
             return sync_dict
 
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST, overwrite_existing=overwrite)  # NOQA
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, overwrite_existing=overwrite)  # NOQA
 
     sync.sync()
     first_sync = _get_modification_times()
