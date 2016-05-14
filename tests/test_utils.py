@@ -21,7 +21,7 @@ def test_run_bash_cmd_oserror():
 def test_run_bash_cmd_bashexception():
     """
     Test if run_bash_cmd raises a BashException when trying to execute a
-    command in a non-standard way.
+    command in a non-standard way (with missing argument in this case).
     """
     with pytest.raises(BashException):
         run_bash_cmd(['lsusb', '-d'])
@@ -31,7 +31,7 @@ def test_run_bash_cmd_expected_output():
     """
     Test if run_bash_cmd returns an expected output for a valid command.
     """
-    assert run_bash_cmd(['whoami']) == 'dm'
+    assert run_bash_cmd(['echo', 'pysyncdroid']) == 'pysyncdroid'
 
 
 def test_readlink():
@@ -46,6 +46,7 @@ def test_readlink():
     assert readlink('../') == os.path.dirname(os.getcwd())
     assert readlink(os.sep) == os.sep
     assert readlink('~') == '/home/{user}'.format(user=getpass.getuser())
+    assert readlink('~/Music') == '/home/{user}/Music'.format(user=getpass.getuser())  # NOQA
     assert readlink('~/..') == '/home'
     assert readlink('../../..') == '/home'
     phone_card = 'Phone/Card'
