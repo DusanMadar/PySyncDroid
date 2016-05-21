@@ -47,6 +47,10 @@ def main():
                 source=args.source, destination=args.destination,
                 unmatched=args.unmatched, overwrite_existing=args.overwrite,
                 verbose=args.verbose)
+
+    sync.set_source_abs()
+    sync.set_destination_abs()
+
     sync.sync()
 
 
