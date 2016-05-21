@@ -334,6 +334,20 @@ def test_prepare_paths(tmpdir, tmpfiles):
             assert DEVICE_DESTINATION in dst
 
 
+@pytest.mark.parametrize("file_type", ['txt', 'TXT'])
+def test_prepare_paths_ignore_files(tmpdir, tmpfiles, file_type):
+    """
+    Test if Sync.prepare_paths() ignores given file types
+    """
+    sync = Sync(DEVICE_MTP_FAKE, tmpdir, DEVICE_DESTINATION,
+                ignore_file_types=[file_type])
+    sync.set_source_abs()
+    sync.set_destination_abs()
+
+    for to_sync in sync.prepare_paths():
+        assert not to_sync['abs_fls_map']
+
+
 # synchronization tests -------------------------------------------------------
 # -----------------------------------------------------------------------------
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
