@@ -168,7 +168,9 @@ def test_source_exists_on_device(mtp):
     Test if Sync is able to initialize; i.e. source exists and is a directory
     """
     sync = Sync(mtp, DEVICE_SOURCE, '')
-    assert sync.source == os.path.join(mtp[1], DEVICE_SOURCE)
+    sync.set_source_abs()
+
+    assert sync.source_abs == os.path.join(mtp[1], DEVICE_SOURCE)
 
 
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
@@ -177,7 +179,8 @@ def test_source_not_exists_on_device(mtp):
     Test if Sync is not able to initialize; i.e. source doesn't exists
     """
     with pytest.raises(OSError) as exc:
-        Sync(mtp, DEVICE_SOURCE_FAKE, '')
+        sync = Sync(mtp, DEVICE_SOURCE_FAKE, '')
+        sync.set_source_abs()
 
     assert NOT_EXISTS in str(exc.value)
 
@@ -189,7 +192,9 @@ def test_source_exists_on_computer():
     Test if Sync is able to initialize; i.e. source exists and is a directory
     """
     sync = Sync(('', ''), COMPUTER_SOURCE, '')
-    assert sync.source == COMPUTER_SOURCE
+    sync.set_source_abs()
+
+    assert sync.source_abs == COMPUTER_SOURCE
 
 
 def test_source_exists_on_computer_relative(cd_home, cd_back):
@@ -200,7 +205,9 @@ def test_source_exists_on_computer_relative(cd_home, cd_back):
     music = 'Music'
 
     sync = Sync(('', ''), music, '')
-    assert sync.source == os.path.join(COMPUTER_HOME, music)
+    sync.set_source_abs()
+
+    assert sync.source_abs == os.path.join(COMPUTER_HOME, music)
 
 
 def test_source_exists_on_computer_relative2(cd_home, cd_back):
@@ -211,7 +218,9 @@ def test_source_exists_on_computer_relative2(cd_home, cd_back):
     parent = '..'
 
     sync = Sync(('', ''), parent, '')
-    assert sync.source == os.path.dirname(COMPUTER_HOME)
+    sync.set_source_abs()
+
+    assert sync.source_abs == os.path.dirname(COMPUTER_HOME)
 
 
 def test_source_exists_on_computer_relative3(cd_home, cd_back):
@@ -222,7 +231,9 @@ def test_source_exists_on_computer_relative3(cd_home, cd_back):
     parent = os.sep
 
     sync = Sync(('', ''), parent, '')
-    assert sync.source == os.sep
+    sync.set_source_abs()
+
+    assert sync.source_abs == os.sep
 
 
 def test_source_not_exists_on_computer_relative():
@@ -231,7 +242,8 @@ def test_source_not_exists_on_computer_relative():
     is specified as a relative path which is wrong in this context
     """
     with pytest.raises(OSError) as exc:
-        Sync(('', ''), 'Music/', '')
+        sync = Sync(('', ''), 'Music/', '')
+        sync.set_source_abs()
 
     assert NOT_EXISTS in str(exc.value)
 
@@ -241,7 +253,9 @@ def test_source_expand():
     Test if Sync is able to initialize even if given an expandable path
     """
     sync = Sync(('', ''), '~/Music', '')
-    assert sync.source == os.path.join(COMPUTER_HOME, 'Music')
+    sync.set_source_abs()
+
+    assert sync.source_abs == os.path.join(COMPUTER_HOME, 'Music')
 
 
 def test_source_is_a_file_on_computer():
@@ -249,7 +263,8 @@ def test_source_is_a_file_on_computer():
     Test if Sync is not able to initialize; i.e. source is a not a directory
     """
     with pytest.raises(OSError) as exc:
-        Sync(('', ''), COMPUTER_SOURCE_FILE, '')
+        sync = Sync(('', ''), COMPUTER_SOURCE_FILE, '')
+        sync.set_source_abs()
 
     assert NOT_DIRECTORY in str(exc.value)
 
@@ -261,7 +276,10 @@ def test_destination_should_be_device():
     Test if Sync sets device as destination if computer is the source
     """
     sync = Sync(DEVICE_MTP_FAKE, COMPUTER_SOURCE, '')
-    assert sync.destination == os.path.join(DEVICE_MTP_FAKE[1], '')
+    sync.set_source_abs()
+    sync.set_destination_abs()
+
+    assert sync.destination_abs == os.path.join(DEVICE_MTP_FAKE[1], '')
 
 
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
@@ -270,7 +288,10 @@ def test_destination_should_be_computer(mtp):
     Test if Sync sets computer as destination if device is the source
     """
     sync = Sync(mtp, DEVICE_SOURCE, '')
-    assert sync.destination == os.path.join(CURRENT_DIRECTORY, '')
+    sync.set_source_abs()
+    sync.set_destination_abs()
+
+    assert sync.destination_abs == os.path.join(CURRENT_DIRECTORY, '')
 
 
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
@@ -282,7 +303,10 @@ def test_destination_should_be_computer_relative(mtp):
     parent = '../..'
 
     sync = Sync(mtp, DEVICE_SOURCE, parent)
-    assert sync.destination == COMPUTER_HOME
+    sync.set_source_abs()
+    sync.set_destination_abs()
+
+    assert sync.destination_abs == COMPUTER_HOME
 
 
 # paths preparation tests -----------------------------------------------------
@@ -292,6 +316,8 @@ def test_prepare_paths(tmpdir, tmpfiles):
     Test if Sync.prepare_paths() returns an expected list of paths
     """
     sync = Sync(DEVICE_MTP_FAKE, tmpdir, DEVICE_DESTINATION)
+    sync.set_source_abs()
+    sync.set_destination_abs()
 
     for to_sync in sync.prepare_paths():
         for key in ('abs_src_dir', 'abs_dst_dir', 'abs_fls_map'):
@@ -318,9 +344,11 @@ def test_sync_to_device(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
     tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
 
     sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR)
+    sync.set_source_abs()
+    sync.set_destination_abs()
     sync.sync()
 
-    synced_files = os.listdir(sync.destination)
+    synced_files = os.listdir(sync.destination_abs)
     assert synced_files
 
     for synced_file in synced_files:
@@ -357,9 +385,11 @@ def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
     #
     # then sync them back to computer
     sync = Sync(mtp, device_source, tmpdir)
+    sync.set_source_abs()
+    sync.set_destination_abs()
     sync.sync()
 
-    synced_files = os.listdir(sync.destination)
+    synced_files = os.listdir(sync.destination_abs)
     assert synced_files
 
     for synced_file in synced_files:
@@ -399,12 +429,14 @@ def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
     gvfs.cp(src=COMPUTER_SOURCE_FILE, dst=dst_file)
 
     sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, unmatched=unmatched_action)  # NOQA
+    sync.set_source_abs()
+    sync.set_destination_abs()
     sync.sync()
 
     #
     # exclude the unmatched file from synchronized files as it was already in
     # the destination directory
-    synced_files = [syncf for syncf in os.listdir(sync.destination)
+    synced_files = [syncf for syncf in os.listdir(sync.destination_abs)
                     if syncf != unmatched]
     assert synced_files
 
@@ -417,10 +449,10 @@ def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
     # test if unmatched_action works as expected
     if unmatched_action == SYNCHRONIZE:
         # unmatched file should be synchronized to the source directory
-        assert unmatched in os.listdir(sync.source)
+        assert unmatched in os.listdir(sync.source_abs)
     elif unmatched_action == REMOVE:
         # unmatched file should be removed from the destination directory
-        assert unmatched not in os.listdir(sync.destination)
+        assert unmatched not in os.listdir(sync.destination_abs)
 
 
 @pytest.mark.parametrize("overwrite", [True, False])
@@ -440,13 +472,15 @@ def test_sync_to_device_overwrite(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
     def _get_modification_times():
         sync_dict = {}
 
-        for synced_file in os.listdir(sync.destination):
-            abs_pth = os.path.join(sync.destination, synced_file)
+        for synced_file in os.listdir(sync.destination_abs):
+            abs_pth = os.path.join(sync.destination_abs, synced_file)
             sync_dict[synced_file] = time.ctime(os.path.getmtime(abs_pth))
 
             return sync_dict
 
     sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, overwrite_existing=overwrite)  # NOQA
+    sync.set_source_abs()
+    sync.set_destination_abs()
 
     sync.sync()
     first_sync = _get_modification_times()
