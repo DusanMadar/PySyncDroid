@@ -14,7 +14,7 @@ from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, readlink
 class Sync(object):
     def __init__(self, mtp_details, source, destination,
                  unmatched=IGNORE, overwrite_existing=False,
-                 verbose=False):
+                 ignore_file_types=None, verbose=False):
         """
         Class for synchronizing directories between a computer and an Android
         device or vice versa.
@@ -29,6 +29,8 @@ class Sync(object):
         :type unmatched: str
         :argument overwrite_existing: flag to overwrite existing files
         :type overwrite_existing: bool
+        :argument ignore_file_types: extensions for ignored file types
+        :type ignore_file_types: list ot None
         :argument verbose: flag to display what is going on
         :type verbose: bool
 
@@ -44,6 +46,10 @@ class Sync(object):
         self.verbose = verbose
         self.unmatched = unmatched
         self.overwrite_existing = overwrite_existing
+
+        if ignore_file_types is not None:
+            ignore_file_types = [f.lower() for f in ignore_file_types]
+        self.ignore_file_types = ignore_file_types
 
     def _verbose(self, message):
         """
@@ -173,6 +179,17 @@ class Sync(object):
             current_dir['abs_fls_map'] = []
 
             for f in files:
+                # handle ignored file types
+                if self.ignore_file_types:
+                    _, extension = os.path.splitext(f)
+
+                    if extension:
+                        extension = extension.lower().replace('.', '')
+
+                        if extension in self.ignore_file_types:
+                            continue
+
+                # append absolute paths
                 abs_src_f_pth = os.path.join(root, f)
                 abs_dst_f_pth = os.path.join(abs_dst_dir_pth, f)
 
@@ -188,6 +205,10 @@ class Sync(object):
         Synchronize files.
         """
         for sync in self.prepare_paths():
+            if not sync['abs_fls_map']:
+                self._verbose('No files to sync')
+                return
+
             parent_dir = sync['abs_dst_dir']
 
             # ensure parent directory tree
