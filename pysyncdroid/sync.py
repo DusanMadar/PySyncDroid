@@ -5,7 +5,6 @@
 
 
 import os
-import time
 
 from pysyncdroid import gvfs
 from pysyncdroid import exceptions
@@ -36,8 +35,11 @@ class Sync(object):
         """
         self.mtp_url = mtp_details[0]
         self.mtp_gvfs_path = mtp_details[1]
-        self.source = self._get_source_abs(source)
-        self.destination = self._get_destination_abs(destination)
+
+        self.source = source
+        self.source_abs = None
+        self.destination = destination
+        self.destination_abs = None
 
         self.verbose = verbose
         self.unmatched = unmatched
@@ -55,7 +57,7 @@ class Sync(object):
         if self.verbose:
             print message
 
-    def _get_source_abs(self, source):
+    def set_source_abs(self):
         """
         Create source directory absolute path.
 
@@ -65,61 +67,54 @@ class Sync(object):
 
         #NOTE: 1. implementation does not support path expansion
         #NOTE: 2. implementation supports only directory sync
-
-        :argument source: synchronization source
-        :type source: str
-
-        :returns str
-
         """
-        source = readlink(source)
+        source = readlink(self.source)
 
         for prefix in (os.getcwd(), self.mtp_gvfs_path):
             # Get absolute path for the specified source
             # Prepend prefix if given source is a relative path
             if not os.path.isabs(source):
-                abs_source = os.path.join(prefix, source)
+                source_abs = os.path.join(prefix, source)
             else:
-                abs_source = source
+                source_abs = source
 
-            if not os.path.exists(abs_source):
+            if not os.path.exists(source_abs):
                 continue
 
-            if not os.path.isdir(abs_source):
+            if not os.path.isdir(source_abs):
                 raise OSError('"{source}" is not a directory'
-                              .format(source=abs_source))
+                              .format(source=source_abs))
 
-            return abs_source
+            self.source_abs = source_abs
+            break
 
-        raise OSError('"{source}" does not exists on computer '
-                      'neither on device'.format(source=abs_source))
+        if self.source_abs is None:
+            raise OSError('"{source}" does not exists on computer '
+                          'neither on device'.format(source=source_abs))
 
-    def _get_destination_abs(self, destination):
+    def set_destination_abs(self):
         """
         Create destination directory absolute path.
 
         #NOTE: implementation does not allow device only sync, i.e. that both
         #NOTE: source and destination are on the device
-
-        :argument destination: synchronization destination
-        :type destination: str
-
-        :returns str
-
         """
-        destination = readlink(destination)
+        destination = readlink(self.destination)
 
-        if 'mtp:host' not in self.source:
+        if self.source_abs is None:
+            raise OSError('Source directory is not defined')
+
+        if 'mtp:host' not in self.source_abs:
             # device is destination
-            abs_destination = os.path.join(self.mtp_gvfs_path, destination)
+            destination_abs = os.path.join(self.mtp_gvfs_path, destination)
         else:
             # computer is destination
             if not os.path.isabs(destination):
-                abs_destination = os.path.join(os.getcwd(), destination)
+                destination_abs = os.path.join(os.getcwd(), destination)
             else:
-                abs_destination = destination
+                destination_abs = destination
 
-        return abs_destination
+        self.destination_abs = destination_abs
 
     def gvfs_wrapper(self, func, *args):
         """
@@ -138,10 +133,11 @@ class Sync(object):
         try:
             func(*args)
         except exceptions.BashException as exc:
-            if exc.message.strip().endswith('Connection reset by peer'):
+            exc_msg = exc.message.strip()
+
+            if exc_msg.endswith('Connection reset by peer'):
                 # re-mount and try again
                 gvfs.mount(self.mtp_url)
-                time.sleep(1)  # TODO maybe not necessary
                 func(*args)
             else:
                 raise
@@ -159,17 +155,17 @@ class Sync(object):
 
         to_sync = []
 
-        for root, _, files in os.walk(self.source):
+        for root, _, files in os.walk(self.source_abs):
             # skip directory without files, even if it contains a sub-directory
             # as sub-directories are walked later on
             if not files:
                 continue
 
-            rel_src_dir_pth = root.replace(self.source, '')
+            rel_src_dir_pth = root.replace(self.source_abs, '')
             if rel_src_dir_pth:
                 rel_src_dir_pth = rel_src_dir_pth.lstrip(os.sep)
 
-            abs_dst_dir_pth = os.path.join(self.destination, rel_src_dir_pth)
+            abs_dst_dir_pth = os.path.join(self.destination_abs, rel_src_dir_pth)  # NOQA
 
             current_dir = {}
             current_dir['abs_src_dir'] = root
@@ -227,7 +223,7 @@ class Sync(object):
 
                 elif self.unmatched == SYNCHRONIZE:
                     # revert the synchronization
-                    self.source, self.destination = self.destination, self.source  # NOQA
+                    self.source_abs, self.destination_abs = self.destination_abs, self.source_abs  # NOQA
 
                     # ignore everything but files synchronizing to source
                     self.unmatched = IGNORE
