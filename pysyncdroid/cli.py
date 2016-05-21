@@ -34,6 +34,8 @@ parser.add_argument('-u', '--unmatched', choices=[IGNORE, REMOVE, SYNCHRONIZE],
                     default=IGNORE)
 parser.add_argument('-o', '--overwrite', action='store_true', default=False,
                     help='Overwrite existing files; not used by default')
+parser.add_argument('-i', '--ignore-file-type', nargs='+', default=None,
+                    help='Ignored file type(s), e.g. html, txt, ...')
 
 
 def main():
@@ -46,7 +48,7 @@ def main():
     sync = Sync(mtp_details=mtp_details,
                 source=args.source, destination=args.destination,
                 unmatched=args.unmatched, overwrite_existing=args.overwrite,
-                verbose=args.verbose)
+                verbose=args.verbose, ignore_file_types=args.ignore_file_type)
 
     sync.set_source_abs()
     sync.set_destination_abs()
