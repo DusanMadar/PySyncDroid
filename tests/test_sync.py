@@ -1,22 +1,22 @@
 """Tests for Sync functionality"""
 
 
-import os
-import time
 import errno
-import pytest
-import random
-import string
-import shutil
 import getpass
+import os
+import random
+import shutil
+import string
 import tempfile
+import time
 
-from pysyncdroid.sync import Sync
+import pytest
 
 from pysyncdroid import gvfs
-from pysyncdroid.utils import REMOVE, SYNCHRONIZE
 from pysyncdroid.exceptions import DeviceException
 from pysyncdroid.find_device import get_connection_details, get_mtp_details
+from pysyncdroid.sync import Sync
+from pysyncdroid.utils import REMOVE, SYNCHRONIZE
 
 
 #: Constants

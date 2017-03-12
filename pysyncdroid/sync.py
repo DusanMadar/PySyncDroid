@@ -6,8 +6,8 @@
 
 import os
 
-from pysyncdroid import gvfs
 from pysyncdroid import exceptions
+from pysyncdroid import gvfs
 from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, readlink
 
 

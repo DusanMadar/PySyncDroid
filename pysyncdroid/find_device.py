@@ -4,8 +4,8 @@
 import os
 import re
 
-from pysyncdroid.utils import run_bash_cmd
 from pysyncdroid.exceptions import DeviceException
+from pysyncdroid.utils import run_bash_cmd
 
 
 # pattern to locate MTP connected devices via URL

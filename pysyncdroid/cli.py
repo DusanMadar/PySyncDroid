@@ -7,8 +7,8 @@
 
 import argparse
 
-from pysyncdroid.sync import Sync
 from pysyncdroid import find_device
+from pysyncdroid.sync import Sync
 from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE
 
 
