@@ -4,17 +4,6 @@
 from pysyncdroid.utils import run_bash_cmd
 
 
-def ls(path):
-    """
-    ls
-
-    :argument path: target path for listing content
-    :type path: str
-
-    """
-    run_bash_cmd(['gvfs-ls', path])
-
-
 def mkdir(path):
     """
     mkdir -p
