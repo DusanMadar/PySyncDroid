@@ -19,7 +19,7 @@ setup(version='0.0.1',
       long_description=description,
       keywords='linux android synchronize usb mtp',
 
-      install_requires=['pytest'],
+      install_requires=['pytest', 'pytest-ordering', 'pytest-cov'],
       packages=['pysyncdroid', 'tests'],
 
       license='MIT',
