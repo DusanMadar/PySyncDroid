@@ -72,6 +72,11 @@ Child directories are automaticaly created in the destination directory (*~/Musi
 dm@Z580:~$ pysyncdroid -ov -V samsung -M gt-i9300 -s Phone/Music -d Music -u remove
 ```
 
+Provide a mapping file (see `src2dest_example.txt` for the file structure) if you need to synchronize more than a single directory.
+``` bash
+dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -f /home/dm/Desktop/src2dest_example.txt -v
+```
+
 ### Device not found error
 If you keep getting the following error message
 
