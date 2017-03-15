@@ -100,10 +100,27 @@ def tmpfiles(tmpdir):
     """
     tmpfiles = []
     for _ in range(21):
-        _, path = tempfile.mkstemp(prefix=PYSYNCDROID, suffix='.txt', dir=tmpdir)  # NOQA
+        _, path = tempfile.mkstemp(prefix=PYSYNCDROID, suffix='.txt', dir=tmpdir)  # noqa
         tmpfiles.append(path)
 
     return tmpfiles
+
+
+@pytest.fixture(scope='module')
+def tmpfiles_names(tmpfiles):
+    """
+    Fixture - get a list (actually, a set) of tempfile names.
+
+    :argument tmpdir: tmpfiles fixture
+    :type tmpdir: fixture
+
+    :returns set
+
+    """
+    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles
+                          if os.path.isfile(tmpf)])
+
+    return tmpfiles_names
 
 
 @pytest.fixture()
@@ -309,6 +326,17 @@ def test_destination_should_be_computer_relative(mtp):
     assert sync.destination_abs == COMPUTER_HOME
 
 
+def test_destination_source_none(mtp):
+    """
+    Test Sync is not able to set destination when source is None.
+    """
+    with pytest.raises(OSError) as exc:
+        sync = Sync(mtp, None, '')
+        sync.set_destination_abs()
+
+    assert str(exc.value) == 'Source directory is not defined'
+
+
 # paths preparation tests -----------------------------------------------------
 # -----------------------------------------------------------------------------
 def test_prepare_paths(tmpdir, tmpfiles):
@@ -350,13 +378,28 @@ def test_prepare_paths_ignore_files(tmpdir, tmpfiles, file_type):
 
 # synchronization tests -------------------------------------------------------
 # -----------------------------------------------------------------------------
+@pytest.mark.first
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_to_device(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
+def test_sync_empty_dir(mtp, tmpdir):
+    """
+    Test Sync.sync() doesn't sync an empty directory
+    """
+    print '\n\n\n'
+    print 'first'
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR)
+    sync.set_source_abs()
+    sync.set_destination_abs()
+    sync.sync()
+
+    with pytest.raises(OSError):
+        os.listdir(sync.destination_abs)
+
+
+@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
+def test_sync_to_device(mtp, tmpdir, tmpfiles_names, tmpdir_device_remove):
     """
     Test if Sync.sync() really sync files from computer to device
     """
-    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
-
     sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR)
     sync.set_source_abs()
     sync.set_destination_abs()
@@ -372,12 +415,10 @@ def test_sync_to_device(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
 
 
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
+def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpfiles_names, tmpdir_device_remove):  # noqa
     """
     Test if Sync.sync() really sync files from device to computer
     """
-    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
-
     #
     # first move tmpfiles to the device
     device_source = os.path.join(mtp[1], DEVICE_DESTINATION_TEST_DIR)
@@ -414,8 +455,8 @@ def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpdir_device_remove):
 
 @pytest.mark.parametrize("unmatched_action", [REMOVE, SYNCHRONIZE])
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
-                                  unmatched_action):
+def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles_names,
+                                  tmpdir_device_remove, unmatched_action):
     """
     :unmatched_action == SYNCHRONIZE
 
@@ -428,8 +469,6 @@ def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
     Test if Sync.sync() really sync files from computer to device and remove
     files that are only on the device.
     """
-    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles])
-
     #
     # create parent directory and copy a new file to the device
     # destination directory; this copied file will be the unmatched file, i.e.
@@ -442,7 +481,7 @@ def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
     dst_file = os.path.join(dst_pth, unmatched)
     gvfs.cp(src=COMPUTER_SOURCE_FILE, dst=dst_file)
 
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, unmatched=unmatched_action)  # NOQA
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, unmatched=unmatched_action)  # noqa
     sync.set_source_abs()
     sync.set_destination_abs()
     sync.sync()
@@ -492,7 +531,7 @@ def test_sync_to_device_overwrite(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
 
             return sync_dict
 
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, overwrite_existing=overwrite)  # NOQA
+    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, overwrite_existing=overwrite)  # noqa
     sync.set_source_abs()
     sync.set_destination_abs()
 
