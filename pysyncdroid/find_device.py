@@ -46,7 +46,9 @@ def get_connection_details(vendor, model):
             continue
         else:
             # collect only the human readable device info (i.e. ignore IDs)
-            vendor_devices.append(device_info[33:])
+            device_info_human = device_info[33:]
+            if device_info_human not in vendor_devices:
+                vendor_devices.append(device_info_human)
 
         if model_pattern.search(device_info) is None:
             continue
