@@ -63,6 +63,32 @@ class Sync(object):
         if self.verbose:
             print message
 
+    def gvfs_wrapper(self, func, *args):
+        """
+        Wrap gvfs operations and handle exceptions which can terminate
+        processing.
+
+        Currently handling:
+            Connection reset by peer
+
+        :argument func: gvfs function to be executed
+        :type func: function
+        :argument *args: function's arguments
+        :type *args:
+
+        """
+        try:
+            func(*args)
+        except exceptions.BashException as exc:
+            exc_msg = exc.message.strip()
+
+            if exc_msg.endswith('Connection reset by peer'):
+                # re-mount and try again
+                gvfs.mount(self.mtp_url)
+                func(*args)
+            else:
+                raise exc
+
     def set_source_abs(self):
         """
         Create source directory absolute path.
@@ -122,31 +148,86 @@ class Sync(object):
 
         self.destination_abs = destination_abs
 
-    def gvfs_wrapper(self, func, *args):
+    def set_destination_sub_dir_abs(self, src_subdir_abs):
         """
-        Wrap gvfs operations and handle exceptions which can terminate
-        processing.
+        Create destination sub-directory absolute path.
 
-        Currently handling:
-            Connection reset by peer
+        :argument src_subdir_abs: source sub directory absolute path
+        :type src_subdir_abs: str
 
-        :argument func: gvfs function to be executed
-        :type func: function
-        :argument *args: function's arguments
-        :type *args:
+        :returns str
 
         """
-        try:
-            func(*args)
-        except exceptions.BashException as exc:
-            exc_msg = exc.message.strip()
+        rel_src_subdir_pth = src_subdir_abs.replace(self.source_abs, '')
+        if rel_src_subdir_pth:
+            rel_src_subdir_pth = rel_src_subdir_pth.lstrip(os.sep)
 
-            if exc_msg.endswith('Connection reset by peer'):
-                # re-mount and try again
-                gvfs.mount(self.mtp_url)
-                func(*args)
-            else:
-                raise
+        return os.path.join(self.destination_abs, rel_src_subdir_pth)
+
+    def subdir_template(self, src_subdir_abs):
+        """
+        Prepare sub-directory dict.
+
+        :argument src_subdir_abs: source sub directory absolute path
+        :type src_subdir_abs: str
+
+        :returns dict
+
+        """
+        dst_subdir_abs = self.set_destination_sub_dir_abs(src_subdir_abs)
+
+        subdir = {}
+        subdir['abs_src_dir'] = src_subdir_abs
+        subdir['abs_dst_dir'] = dst_subdir_abs
+        subdir['abs_fls_map'] = []
+
+        return subdir
+
+    def handle_ignored_file_type(self, f):
+        """
+        Check if a given file is allowed to be synchronized.
+
+        :argument f: file path
+        :type f: str
+
+        """
+        if self.ignore_file_types:
+            _, extension = os.path.splitext(f)
+
+            if extension:
+                extension = extension.lower().replace('.', '')
+
+                if extension in self.ignore_file_types:
+                    raise exceptions.IgnoredTypeException
+
+    def collect_subdir_data(self, src_subdir_abs, src_subdir_files):
+        """
+        Collect sub-directory content to synchronize.
+
+        :argument src_subdir_abs: source sub-directory absolute path
+        :type src_subdir_abs: str
+        :argument src_subdir_files: sub-directory files
+        :type src_subdir_files: list
+
+        :returns dict
+
+        """
+        subdir = self.subdir_template(src_subdir_abs)
+
+        for f in src_subdir_files:
+            try:
+                self.handle_ignored_file_type(f)
+            except exceptions.IgnoredTypeException:
+                continue
+
+            # append absolute paths
+            abs_src_f_pth = os.path.join(subdir['abs_src_dir'], f)
+            abs_dst_f_pth = os.path.join(subdir['abs_dst_dir'], f)
+
+            src_2_dst = (abs_src_f_pth, abs_dst_f_pth)
+            subdir['abs_fls_map'].append(src_2_dst)
+
+        return subdir
 
     def prepare_paths(self):
         """
@@ -167,36 +248,8 @@ class Sync(object):
             if not files:
                 continue
 
-            rel_src_dir_pth = root.replace(self.source_abs, '')
-            if rel_src_dir_pth:
-                rel_src_dir_pth = rel_src_dir_pth.lstrip(os.sep)
-
-            abs_dst_dir_pth = os.path.join(self.destination_abs, rel_src_dir_pth)  # NOQA
-
-            current_dir = {}
-            current_dir['abs_src_dir'] = root
-            current_dir['abs_dst_dir'] = abs_dst_dir_pth
-            current_dir['abs_fls_map'] = []
-
-            for f in files:
-                # handle ignored file types
-                if self.ignore_file_types:
-                    _, extension = os.path.splitext(f)
-
-                    if extension:
-                        extension = extension.lower().replace('.', '')
-
-                        if extension in self.ignore_file_types:
-                            continue
-
-                # append absolute paths
-                abs_src_f_pth = os.path.join(root, f)
-                abs_dst_f_pth = os.path.join(abs_dst_dir_pth, f)
-
-                src_2_dst = (abs_src_f_pth, abs_dst_f_pth)
-                current_dir['abs_fls_map'].append(src_2_dst)
-
-            to_sync.append(current_dir)
+            subdir_data = self.collect_subdir_data(root, files)
+            to_sync.append(subdir_data)
 
         return to_sync
 

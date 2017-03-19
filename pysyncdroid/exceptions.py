@@ -7,3 +7,7 @@ class DeviceException(Exception):
 
 class BashException(Exception):
     pass
+
+
+class IgnoredTypeException(Exception):
+    pass
