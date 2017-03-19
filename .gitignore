@@ -13,10 +13,8 @@ dist/
 # virtualenv folder
 venv/
 
-# eclipse project files
-.project
-.pydevproject
-.settings/
-
 # backup files
 *~
+
+# py.test coverage
+.coverage
