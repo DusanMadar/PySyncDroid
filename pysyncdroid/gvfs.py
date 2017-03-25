@@ -4,6 +4,19 @@
 from pysyncdroid.utils import run_bash_cmd
 
 
+def cp(src, dst):
+    """
+    cp
+
+    :argument src: source file/directory to be copied
+    :type src: str
+    :argument dst: destination file/directory
+    :type dst: str
+
+    """
+    run_bash_cmd(['gvfs-copy', src, dst])
+
+
 def mkdir(path):
     """
     mkdir -p
@@ -17,30 +30,15 @@ def mkdir(path):
     run_bash_cmd(['gvfs-mkdir', '-p', path])
 
 
-def rm(src):
+def mount(mtp_url):
     """
-    rm -f
+    mount
 
-    NOTE: '-f' -> Ignore nonexistent and non-deletable files.
-
-    :argument src: file to be removed
-    :type src: str
+    :argument mtp_url: device MTP URL
+    :type mtp_url: str
 
     """
-    run_bash_cmd(['gvfs-rm', '-f', src])
-
-
-def cp(src, dst):
-    """
-    cp
-
-    :argument src: source file/directory to be copied
-    :type src: str
-    :argument dst: destination file/directory
-    :type dst: str
-
-    """
-    run_bash_cmd(['gvfs-copy', src, dst])
+    run_bash_cmd(['gvfs-mount', mtp_url])
 
 
 def mv(src, dst):
@@ -57,12 +55,14 @@ def mv(src, dst):
     rm(src)
 
 
-def mount(mtp_url):
+def rm(src):
     """
-    mount
+    rm -f
 
-    :argument mtp_url: device MTP URL
-    :type mtp_url: str
+    NOTE: '-f' -> Ignore nonexistent and non-deletable files.
+
+    :argument src: file to be removed
+    :type src: str
 
     """
-    run_bash_cmd(['gvfs-mount', mtp_url])
+    run_bash_cmd(['gvfs-rm', '-f', src])
