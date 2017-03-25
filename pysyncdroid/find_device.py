@@ -21,6 +21,13 @@ MTP_URL_PATTERN = 'mtp://[usb:{b},{d}]/'
 MTP_GVFS_PATH_PATTERN = '/run/user/{u}/gvfs/mtp:host=%5Busb%3A{b}%2C{d}%5D'
 
 
+def lsusb():
+    """
+    A wrapper for the Linux `lsusb` commmand.
+    """
+    return run_bash_cmd(['lsusb'])
+
+
 def get_connection_details(vendor, model):
     """
     Get device connection details (USB bus & device IDs).
@@ -38,10 +45,8 @@ def get_connection_details(vendor, model):
     vendor_pattern = re.compile(vendor, re.IGNORECASE)
     model_pattern = re.compile(model, re.IGNORECASE)
 
-    usb_devices = run_bash_cmd(['lsusb'])
-
     # TODO: this assumes there is only one `vendor:model` device connected
-    for device_info in usb_devices.split('\n'):
+    for device_info in lsusb().split('\n'):
         if vendor_pattern.search(device_info) is None:
             continue
         else:
@@ -59,20 +64,19 @@ def get_connection_details(vendor, model):
 
         return usb_bus_id, device_id
 
+    # exception message base
+    exc_msg = 'Device "{v} {m}" not found.\n'.format(v=vendor, m=model)
+
+    # exception message extension base
+    ext_base = '"{v}" devices were found'.format(v=vendor)
+
+    if vendor_devices:
+        exc_msg += ('Following {b}:\n{d}'
+                    .format(b=ext_base, d='\n'.join(vendor_devices)))
     else:
-        # exception message base
-        exc_msg = 'Device "{v} {m}" not found.\n'.format(v=vendor, m=model)
+        exc_msg += 'No {b}.'.format(b=ext_base)
 
-        # exception message extension base
-        ext_base = '"{v}" devices were found'.format(v=vendor)
-
-        if vendor_devices:
-            exc_msg += ('Following {b}:\n{d}'
-                        .format(b=ext_base, d='\n'.join(vendor_devices)))
-        else:
-            exc_msg += 'No {b}.'.format(b=ext_base)
-
-        raise DeviceException(exc_msg)
+    raise DeviceException(exc_msg)
 
 
 def get_mtp_details(usb_bus_id, device_id):
