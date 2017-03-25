@@ -1,4 +1,4 @@
-"""Tests for device finding functionality"""
+"""Tests for gvfs wrappers."""
 
 
 from mock import call, patch
