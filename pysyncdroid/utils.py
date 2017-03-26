@@ -49,7 +49,9 @@ def readlink(path):
     """
     A wrapper for the Linux `readlink` commmand.
 
-    NOTE: '-f' -> Follow.
+    NOTE1: '-f' -> canonicalize by following path.
+    NOTE2: `readlink` undestands '.', '..' and '/' and their combinations
+    (e.g. './', '/..', '../').
 
     :argument path: path to resolve
     :type path: str
