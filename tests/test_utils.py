@@ -1,9 +1,9 @@
 """Tests for utils functionality."""
 
 
+from mock import Mock, patch
 import os
 import unittest
-from mock import Mock, patch
 
 from pysyncdroid.exceptions import BashException
 from pysyncdroid.utils import run_bash_cmd, readlink
