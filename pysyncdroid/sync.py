@@ -65,7 +65,6 @@ class Sync(object):
 
         self.source = source
         self.destination = destination
-        self.destination_abs = None
 
         self.verbose = verbose
         self.unmatched = unmatched
@@ -121,8 +120,8 @@ class Sync(object):
 
         First assume that computer is the source, then try the device.
 
-        #NOTE: 1. implementation does not support path expansion
-        #NOTE: 2. implementation supports only directory sync
+        NOTE1: implementation does not support path expansion.
+        NOTE2: implementation supports only directory sync.
         """
         source = readlink(self.source)
         source_abs_exists = False
@@ -155,27 +154,24 @@ class Sync(object):
         """
         Create destination directory absolute path.
 
-        #NOTE: implementation does not allow device only sync, i.e. that both
-        #NOTE: source and destination are on the device
+        NOTE1: implementation does not allow device only sync, i.e. that both
+        source and destination are on the device.
+        NOTE2: it's assumed that source is defined.
+        NOTE3: no need to check if destination exists or is a dir - it will be
+        created if necessary.
         """
         destination = readlink(self.destination)
 
-        if self.source is None:
-            raise OSError('Source directory is not defined.')
-
-        if 'mtp:host' not in self.source:
+        if 'mtp:host' in self.source:
+            # computer is destination
+            destination_abs = destination
+        else:
             # device is destination
             destination_abs = os.path.join(self.mtp_gvfs_path, destination)
-        else:
-            # computer is destination
-            if not os.path.isabs(destination):
-                destination_abs = os.path.join(os.getcwd(), destination)
-            else:
-                destination_abs = destination
 
-        self.destination_abs = destination_abs
+        self.destination = destination_abs
 
-    def set_destination_sub_dir_abs(self, src_subdir_abs):
+    def set_destination_subdir_abs(self, src_subdir_abs):
         """
         Create destination sub-directory absolute path.
 
@@ -187,9 +183,12 @@ class Sync(object):
         """
         rel_src_subdir_pth = src_subdir_abs.replace(self.source, '')
         if rel_src_subdir_pth:
+            # strip leading slashes (if any) to avoid confusing 'os.path.join'
+            # (i.e. passing an absolute path as the second argument)
+            # https://docs.python.org/3/library/os.path.html#os.path.join
             rel_src_subdir_pth = rel_src_subdir_pth.lstrip(os.sep)
 
-        return os.path.join(self.destination_abs, rel_src_subdir_pth)
+        return os.path.join(self.destination, rel_src_subdir_pth)
 
     def subdir_template(self, src_subdir_abs):
         """
@@ -201,7 +200,7 @@ class Sync(object):
         :returns dict
 
         """
-        dst_subdir_abs = self.set_destination_sub_dir_abs(src_subdir_abs)
+        dst_subdir_abs = self.set_destination_subdir_abs(src_subdir_abs)
 
         subdir = {}
         subdir['abs_src_dir'] = src_subdir_abs
@@ -324,7 +323,7 @@ class Sync(object):
 
                 elif self.unmatched == SYNCHRONIZE:
                     # revert the synchronization
-                    self.source, self.destination_abs = self.destination_abs, self.source  # NOQA
+                    self.source, self.destination = self.destination, self.source  # NOQA
 
                     # ignore everything but files synchronizing to source
                     self.unmatched = IGNORE

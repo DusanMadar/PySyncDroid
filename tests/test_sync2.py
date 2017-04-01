@@ -7,10 +7,14 @@ from StringIO import StringIO
 import unittest
 
 from pysyncdroid.exceptions import BashException
+from pysyncdroid.find_device import MTP_URL_PATTERN, MTP_GVFS_PATH_PATTERN
 from pysyncdroid.sync import Sync, readlink
 
 
-FAKE_MTP_DETAILS = ('', '')
+FAKE_MTP_DETAILS = (
+    MTP_URL_PATTERN.format(b='002', d='003'),
+    MTP_GVFS_PATH_PATTERN.format(u='<user>', b='002', d='003')
+)
 
 
 class TestReadLink(unittest.TestCase):
@@ -171,10 +175,10 @@ class TestSync(unittest.TestCase):
         mock_path_exists.side_effect = [False, True, True]
         mock_path_isdir.return_value = True
 
-        sync = Sync(('', '/test-mpt-gvfs-path'), 'Card/Music', '')
+        sync = Sync(FAKE_MTP_DETAILS, 'Card/Music', '')
         sync.set_source_abs()
 
-        expected_abs_path = '/test-mpt-gvfs-path/Card/Music'
+        expected_abs_path = os.path.join(sync.mtp_gvfs_path, 'Card/Music')
         self.assertEqual(sync.source, expected_abs_path)
 
     @patch('pysyncdroid.sync.os.path.exists')
@@ -186,7 +190,7 @@ class TestSync(unittest.TestCase):
         mock_path_exists.return_value = False
 
         with self.assertRaises(OSError) as exc:
-            sync = Sync(('', '/test-mpt-gvfs-path'), 'non-exiting-path', '')
+            sync = Sync(FAKE_MTP_DETAILS, 'non-exiting-path', '')
             sync.set_source_abs()
 
         # Must be called twice - for computer and device.
@@ -216,6 +220,72 @@ class TestSync(unittest.TestCase):
         expected_abs_path = os.path.join(os.getcwd(), 'not-a-directory')
         err_msg = '"{}" is not a directory.'.format(expected_abs_path)
         self.assertEqual(str(exc.exception), err_msg)
+
+    #
+    # 'set_destination_abs()'
+    def test_set_destination_abs_absolute_path(self):
+        """
+        Test 'set_destination_abs' recongizes an absolute path.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '', '/an-absolute-path')
+        sync.set_destination_abs()
+
+        self.assertEqual(sync.destination, '/an-absolute-path')
+
+    def test_set_destination_abs_computer_relative_path(self):
+        """
+        Test 'set_destination_abs' creates an absolute path from a relative path
+        when the destination is on computer.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '/test-mtp:host-path', 'a-relative-path/')
+        sync.set_destination_abs()
+
+        expected_abs_path = os.path.join(os.getcwd(), 'a-relative-path')
+        self.assertEqual(sync.destination, expected_abs_path)
+
+    def test_set_destination_abs_device_relative_path(self):
+        """
+        Test 'set_destination_abs' creates an absolute path from a relative path
+        when the destination is on device.
+        """
+
+        sync = Sync(FAKE_MTP_DETAILS, '', 'Card/Music')
+        sync.set_destination_abs()
+
+        expected_abs_path = os.path.join(sync.mtp_gvfs_path, 'Card/Music')
+        self.assertEqual(sync.destination, expected_abs_path)
+
+    #
+    # 'set_destination_subdir_abs()'
+    def test_set_destination_subdir_absh(self):
+        """
+        Test 'set_destination_subdir_abs' creates an absolute path for a
+        destination subdirectory.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '~/Music', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+
+        src_subdir_abs = os.path.join(sync.source, 'subdir')
+        dst_subdir_abs = sync.set_destination_subdir_abs(src_subdir_abs)
+
+        expected_abs_path = os.path.join(sync.destination, 'subdir')
+        self.assertEqual(dst_subdir_abs, expected_abs_path)
+
+    #
+    # 'subdir_template()'
+    def test_subdir_template(self):
+        sync = Sync(FAKE_MTP_DETAILS, '~/Music', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+
+        src_subdir_abs = os.path.join(sync.source, 'subdir')
+        subdir = sync.subdir_template(src_subdir_abs)
+
+        self.assertIsInstance(subdir, dict)
+        self.assertIn('abs_src_dir', subdir)
+        self.assertIn('abs_dst_dir', subdir)
+        self.assertIn('abs_fls_map', subdir)
 
 
 if __name__ == '__main__':
