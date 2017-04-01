@@ -2,11 +2,10 @@
 
 
 from mock import Mock, patch
-import os
 import unittest
 
 from pysyncdroid.exceptions import BashException
-from pysyncdroid.utils import run_bash_cmd, readlink
+from pysyncdroid.utils import run_bash_cmd
 
 
 class TestRunBashCmd(unittest.TestCase):
@@ -67,59 +66,6 @@ class TestRunBashCmd(unittest.TestCase):
 
         err_msg = 'Command "lsusb -d" failed: {}'.format(lsub_msg)
         self.assertEqual(str(exc.exception), err_msg)
-
-
-class TestReadLink(unittest.TestCase):
-    def setUp(self):
-        self.patcher = patch('pysyncdroid.utils.run_bash_cmd')
-        self.mock_run_bash_cmd = self.patcher.start()
-
-    def tearDown(self):
-        self.patcher.stop()
-
-    def test_readlink_no_path(self):
-        """
-        Test 'readlink' returns an empty string in case of no path to read.
-        """
-        self.assertEqual(readlink(''), '')
-
-    @patch('pysyncdroid.utils.os.path.expanduser')
-    def test_readlink_tilde(self, mock_expanduser):
-        """
-        Test 'readlink' is able to hadle '~' path.
-        """
-        mock_expanduser.return_value = '/home/<user name>'
-        self.mock_run_bash_cmd.return_value = mock_expanduser.return_value
-        self.assertEqual(readlink('~'), mock_expanduser.return_value)
-
-    def test_readlink_slash(self):
-        """
-        Test 'readlink' is able to hadle '/' path (and doesn't strip it).
-        """
-        self.mock_run_bash_cmd.return_value = '/'
-        self.assertEqual(readlink('/'), '/')
-
-    def test_readlink_slash_trailing(self):
-        """
-        Test 'readlink' strips trailing '/'.
-        """
-        self.mock_run_bash_cmd.return_value = '/tmp/example/'
-        self.assertEqual(readlink('/tmp/example/'), '/tmp/example')
-
-    def test_readlink_nonexisting(self):
-        """
-        Test 'readlink' is agnosting to the path existance and simply adds the
-        provided string (without a slash) to the current working directory.
-        """
-        self.mock_run_bash_cmd.return_value = os.path.join(os.getcwd(), 'foo')
-        self.assertEqual(readlink('foo'), self.mock_run_bash_cmd.return_value)
-
-    def test_readlink_device_path(self):
-        """
-        Test 'readlink' returns the given path if it's unable to follow it.
-        """
-        self.mock_run_bash_cmd.return_value = 'Phone/Card'
-        self.assertEqual(readlink('Phone/Card'), 'Phone/Card')
 
 
 if __name__ == '__main__':

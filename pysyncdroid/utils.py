@@ -43,30 +43,3 @@ def run_bash_cmd(cmd):
         exc_msg = ('Error while trying to execute command "{cmd}": {exc}'
                    .format(cmd=_cmd, exc=exc.strerror))
         raise OSError(exc_msg)
-
-
-def readlink(path):
-    """
-    A wrapper for the Linux `readlink` commmand.
-
-    NOTE1: '-f' -> canonicalize by following path.
-    NOTE2: `readlink` undestands '.', '..' and '/' and their combinations
-    (e.g. './', '/..', '../').
-
-    :argument path: path to resolve
-    :type path: str
-
-    :returns str
-    """
-    if not path:
-        return path
-
-    if path[0] == '~':
-        path = os.path.expanduser(path)
-
-    path = run_bash_cmd(['readlink', '-f', path]) or path
-
-    if path != os.sep:
-        path = path.rstrip(os.sep)
-
-    return path

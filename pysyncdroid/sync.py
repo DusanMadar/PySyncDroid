@@ -1,14 +1,39 @@
 # -*- coding: utf-8 -*-
 
 
-"""Synchronization class"""
+"""Main synchronization functionality."""
 
 
 import os
 
 from pysyncdroid import exceptions
 from pysyncdroid import gvfs
-from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, readlink
+from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, run_bash_cmd
+
+
+def readlink(path):
+    """
+    A wrapper for the Linux `readlink` commmand.
+
+    NOTE1: '-f' -> canonicalize by following path.
+    NOTE2: `readlink` undestands '.', '..' and '/' and their combinations
+    (e.g. './', '/..', '../').
+    NOTE3: `readlink` strips trailing slashes by default.
+
+    :argument path: path to resolve
+    :type path: str
+
+    :returns str
+    """
+    if not path:
+        return path
+
+    if path[0] == '~':
+        path = os.path.expanduser(path)
+
+    path = run_bash_cmd(['readlink', '-f', path]) or path
+
+    return path
 
 
 class Sync(object):
@@ -39,7 +64,6 @@ class Sync(object):
         self.mtp_gvfs_path = mtp_details[1]
 
         self.source = source
-        self.source_abs = None
         self.destination = destination
         self.destination_abs = None
 
@@ -54,7 +78,7 @@ class Sync(object):
     def _verbose(self, message):
         """
         Manage printing action messages, i.e. print what is going on if the
-        'verbose' flag is set
+        'verbose' flag is set.
 
         :argument message: message to print
         :type message: str
@@ -101,6 +125,7 @@ class Sync(object):
         #NOTE: 2. implementation supports only directory sync
         """
         source = readlink(self.source)
+        source_abs_exists = False
 
         for prefix in (os.getcwd(), self.mtp_gvfs_path):
             # Get absolute path for the specified source
@@ -110,19 +135,21 @@ class Sync(object):
             else:
                 source_abs = source
 
-            if not os.path.exists(source_abs):
-                continue
+            source_abs_exists = os.path.exists(source_abs)
+            if source_abs_exists:
+                break
 
-            if not os.path.isdir(source_abs):
-                raise OSError('"{source}" is not a directory'
-                              .format(source=source_abs))
+        if not source_abs_exists:
+            raise OSError(
+                '"{source}" does not exist on computer or on device.'
+                .format(source=self.source)
+            )
+        elif not os.path.isdir(source_abs):
+            raise OSError(
+                '"{source}" is not a directory.'.format(source=source_abs)
+            )
 
-            self.source_abs = source_abs
-            break
-
-        if self.source_abs is None:
-            raise OSError('"{source}" does not exists on computer '
-                          'neither on device'.format(source=source_abs))
+        self.source = source_abs
 
     def set_destination_abs(self):
         """
@@ -133,10 +160,10 @@ class Sync(object):
         """
         destination = readlink(self.destination)
 
-        if self.source_abs is None:
-            raise OSError('Source directory is not defined')
+        if self.source is None:
+            raise OSError('Source directory is not defined.')
 
-        if 'mtp:host' not in self.source_abs:
+        if 'mtp:host' not in self.source:
             # device is destination
             destination_abs = os.path.join(self.mtp_gvfs_path, destination)
         else:
@@ -158,7 +185,7 @@ class Sync(object):
         :returns str
 
         """
-        rel_src_subdir_pth = src_subdir_abs.replace(self.source_abs, '')
+        rel_src_subdir_pth = src_subdir_abs.replace(self.source, '')
         if rel_src_subdir_pth:
             rel_src_subdir_pth = rel_src_subdir_pth.lstrip(os.sep)
 
@@ -242,7 +269,7 @@ class Sync(object):
 
         to_sync = []
 
-        for root, _, files in os.walk(self.source_abs):
+        for root, _, files in os.walk(self.source):
             # skip directory without files, even if it contains a sub-directory
             # as sub-directories are walked later on
             if not files:
@@ -297,7 +324,7 @@ class Sync(object):
 
                 elif self.unmatched == SYNCHRONIZE:
                     # revert the synchronization
-                    self.source_abs, self.destination_abs = self.destination_abs, self.source_abs  # NOQA
+                    self.source, self.destination_abs = self.destination_abs, self.source  # NOQA
 
                     # ignore everything but files synchronizing to source
                     self.unmatched = IGNORE

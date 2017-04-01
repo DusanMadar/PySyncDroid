@@ -45,7 +45,7 @@ DEVICE_MTP_FAKE = ('mtp://[usb:<usb_id>,<device_id>]/', '/mtp_path')
 DEVICE_NOT_CONNECTED = "Testing device not connected"
 
 # expected exception messages
-NOT_EXISTS = 'does not exists on computer neither on device'
+NOT_EXISTS = 'does not exist on computer or on device'
 NOT_DIRECTORY = 'is not a directory'
 
 
@@ -187,7 +187,7 @@ def test_source_exists_on_device(mtp):
     sync = Sync(mtp, DEVICE_SOURCE, '')
     sync.set_source_abs()
 
-    assert sync.source_abs == os.path.join(mtp[1], DEVICE_SOURCE)
+    assert sync.source == os.path.join(mtp[1], DEVICE_SOURCE)
 
 
 @pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
@@ -211,7 +211,7 @@ def test_source_exists_on_computer():
     sync = Sync(('', ''), COMPUTER_SOURCE, '')
     sync.set_source_abs()
 
-    assert sync.source_abs == COMPUTER_SOURCE
+    assert sync.source == COMPUTER_SOURCE
 
 
 def test_source_exists_on_computer_relative(cd_home, cd_back):
@@ -224,7 +224,7 @@ def test_source_exists_on_computer_relative(cd_home, cd_back):
     sync = Sync(('', ''), music, '')
     sync.set_source_abs()
 
-    assert sync.source_abs == os.path.join(COMPUTER_HOME, music)
+    assert sync.source == os.path.join(COMPUTER_HOME, music)
 
 
 def test_source_exists_on_computer_relative2(cd_home, cd_back):
@@ -237,7 +237,7 @@ def test_source_exists_on_computer_relative2(cd_home, cd_back):
     sync = Sync(('', ''), parent, '')
     sync.set_source_abs()
 
-    assert sync.source_abs == os.path.dirname(COMPUTER_HOME)
+    assert sync.source == os.path.dirname(COMPUTER_HOME)
 
 
 def test_source_exists_on_computer_relative3(cd_home, cd_back):
@@ -250,7 +250,7 @@ def test_source_exists_on_computer_relative3(cd_home, cd_back):
     sync = Sync(('', ''), parent, '')
     sync.set_source_abs()
 
-    assert sync.source_abs == os.sep
+    assert sync.source == os.sep
 
 
 def test_source_not_exists_on_computer_relative():
@@ -272,7 +272,7 @@ def test_source_expand():
     sync = Sync(('', ''), '~/Music', '')
     sync.set_source_abs()
 
-    assert sync.source_abs == os.path.join(COMPUTER_HOME, 'Music')
+    assert sync.source == os.path.join(COMPUTER_HOME, 'Music')
 
 
 def test_source_is_a_file_on_computer():
@@ -326,6 +326,7 @@ def test_destination_should_be_computer_relative(mtp):
     assert sync.destination_abs == COMPUTER_HOME
 
 
+@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
 def test_destination_source_none(mtp):
     """
     Test Sync is not able to set destination when source is None.
@@ -334,7 +335,7 @@ def test_destination_source_none(mtp):
         sync = Sync(mtp, None, '')
         sync.set_destination_abs()
 
-    assert str(exc.value) == 'Source directory is not defined'
+    assert str(exc.value) == 'Source directory is not defined.'
 
 
 # paths preparation tests -----------------------------------------------------
@@ -502,7 +503,7 @@ def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles_names,
     # test if unmatched_action works as expected
     if unmatched_action == SYNCHRONIZE:
         # unmatched file should be synchronized to the source directory
-        assert unmatched in os.listdir(sync.source_abs)
+        assert unmatched in os.listdir(sync.source)
     elif unmatched_action == REMOVE:
         # unmatched file should be removed from the destination directory
         assert unmatched not in os.listdir(sync.destination_abs)
