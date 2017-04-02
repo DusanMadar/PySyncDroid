@@ -64,8 +64,10 @@ def main():
 
         for line in mapping_lines:
             line = line.replace('\n', '')
-            line_parts = line.split('==>')
+            if not line:
+                continue
 
+            line_parts = line.split('==>')
             sources.append(line_parts[0])
             destinations.append(line_parts[1])
 
@@ -82,7 +84,7 @@ def main():
         sync.set_source_abs()
         sync.set_destination_abs()
 
-    sync.sync()
+        sync.sync()
 
 
 if __name__ == '__main__':
