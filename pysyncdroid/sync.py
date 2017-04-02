@@ -4,6 +4,8 @@
 """Main synchronization functionality."""
 
 
+from __future__ import print_function
+
 import os
 
 from pysyncdroid import exceptions
@@ -84,7 +86,7 @@ class Sync(object):
 
         """
         if self.verbose:
-            print message
+            print(message)
 
     def gvfs_wrapper(self, func, *args):
         """
@@ -209,16 +211,16 @@ class Sync(object):
 
         return subdir
 
-    def handle_ignored_file_type(self, f):
+    def handle_ignored_file_type(self, path):
         """
         Check if a given file is allowed to be synchronized.
 
-        :argument f: file path
-        :type f: str
+        :argument path: file path
+        :type path: str
 
         """
         if self.ignore_file_types:
-            _, extension = os.path.splitext(f)
+            _, extension = os.path.splitext(path)
 
             if extension:
                 extension = extension.lower().replace('.', '')
