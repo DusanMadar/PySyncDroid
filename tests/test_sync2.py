@@ -274,22 +274,24 @@ class TestSync(unittest.TestCase):
         self.assertEqual(dst_subdir_abs, expected_abs_path)
 
     #
-    # 'subdir_template()'
-    def test_subdir_template(self):
+    # 'sync_data_template()'
+    def test_sync_data_template(self):
         """
-        Test 'subdir_template' creates a dict with expected keys.
+        Test 'sync_data_template' creates a dict with expected keys.
         """
         sync = Sync(FAKE_MTP_DETAILS, '~/Music', 'Card/Music')
         sync.set_source_abs()
         sync.set_destination_abs()
 
         src_subdir_abs = os.path.join(sync.source, 'subdir')
-        subdir = sync.subdir_template(src_subdir_abs)
+        dst_subdir_abs = os.path.join(sync.destination, 'subdir')
+        sync_data = sync.sync_data_template(src_subdir_abs, dst_subdir_abs)
 
-        self.assertIsInstance(subdir, dict)
-        self.assertIn('abs_src_dir', subdir)
-        self.assertIn('abs_dst_dir', subdir)
-        self.assertIn('abs_fls_map', subdir)
+        self.assertIsInstance(sync_data, dict)
+        self.assertIn('src_dir_abs', sync_data)
+        self.assertIn('src_dir_fls', sync_data)
+        self.assertIn('dst_dir_abs', sync_data)
+        self.assertIn('dst_dir_fls', sync_data)
 
     #
     # 'handle_ignored_file_type()'
@@ -306,54 +308,29 @@ class TestSync(unittest.TestCase):
             sync.handle_ignored_file_type('/tmp/test.jpg')
 
     #
-    # 'collect_subdir_data()'
+    # 'get_source_subdir_data()'
     @patch.object(pysyncdroid.sync.Sync, 'handle_ignored_file_type')
-    def test_collect_subdir_data(self, mock_handle_ignored_file_type):
+    def test_get_source_subdir_data(self, mock_handle_ignored_file_type):
         """
-        Test 'collect_subdir_data' populates subdir dict with collected data.
+        Test 'get_source_subdir_data' populates subdir dict with collected data.
         """
         mock_handle_ignored_file_type.side_effect = [
             None, IgnoredTypeException, None
         ]
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
 
-        src_subdir_abs = '/tmp/testdir'
+        src_subdir_abs = os.path.join(sync.source, 'subdir')
+        dst_subdir_abs = os.path.join(sync.destination, 'subdir')
+        sync_data = sync.sync_data_template(src_subdir_abs, dst_subdir_abs)
+
         src_subdir_files = ['song.mp3', 'cover.jpg', 'demo.mp3']
-        subdir = sync.collect_subdir_data(src_subdir_abs, src_subdir_files)
+        sync.get_source_subdir_data(src_subdir_files, sync_data)
 
-        self.assertEqual(subdir['abs_src_dir'], '/tmp/testdir')
-        self.assertEqual(subdir['abs_dst_dir'], 'Card/Music/testdir')
-        self.assertEqual(subdir['abs_fls_map'], [
-            ('/tmp/testdir/song.mp3', 'Card/Music/testdir/song.mp3'),
-            ('/tmp/testdir/demo.mp3', 'Card/Music/testdir/demo.mp3'),
+        self.assertEqual(sync_data['src_dir_abs'], '/tmp/subdir')
+        self.assertEqual(sync_data['dst_dir_abs'], 'Card/Music/subdir')
+        self.assertEqual(sync_data['src_dir_fls'], [
+            '/tmp/subdir/song.mp3', '/tmp/subdir/demo.mp3'
         ])
-
-    #
-    # 'prepare_paths()'
-    @patch('pysyncdroid.sync.os.walk')
-    @patch.object(pysyncdroid.sync.Sync, 'collect_subdir_data')
-    def test_prepare_paths(self, mock_collect_subdir_data, mock_os_walk):
-        """
-        Test 'prepare_paths' returns a list of populated subdir templates (i.e.
-        a list of files and directories to be synchronized).
-        """
-        mock_os_walk.return_value = [
-            ('/tmp', ['tesdir'], []),
-            ('/tmp/tesdir', [], ['song.mp3', 'cover.jpg', 'demo.mp3'])
-        ]
-        mock_collect_subdir_data.return_value = {
-            'abs_src_dir': '/tmp/testdir',
-            'abs_dst_dir': 'Card/Music/testdir',
-            'abs_fls_map': [
-                ('/tmp/testdir/song.mp3', 'Card/Music/testdir/song.mp3'),
-                ('/tmp/testdir/demo.mp3', 'Card/Music/testdir/demo.mp3'),
-            ]
-        }
-        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
-        to_sync = sync.prepare_paths()
-
-        self.assertIsInstance(to_sync, list)
-        self.assertIn(mock_collect_subdir_data.return_value, to_sync)
 
 
 if __name__ == '__main__':

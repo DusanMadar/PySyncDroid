@@ -3,6 +3,7 @@
 
 import errno
 import getpass
+from mock import patch
 import os
 import random
 import shutil
@@ -12,6 +13,7 @@ import time
 
 import pytest
 
+import pysyncdroid
 from pysyncdroid import gvfs
 from pysyncdroid.exceptions import DeviceException
 from pysyncdroid.find_device import get_connection_details, get_mtp_details
@@ -328,20 +330,24 @@ def test_destination_should_be_computer_relative(mtp):
 
 # paths preparation tests -----------------------------------------------------
 # -----------------------------------------------------------------------------
-def test_prepare_paths(tmpdir, tmpfiles):
+@patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+def test_prepare_paths(mock_gvfs_wrapper, tmpdir, tmpfiles):
     """
     Test if Sync.prepare_paths() returns an expected list of paths
     """
+    mock_gvfs_wrapper.return_value = ''
+
     sync = Sync(DEVICE_MTP_FAKE, tmpdir, DEVICE_DESTINATION)
     sync.set_source_abs()
     sync.set_destination_abs()
 
     for to_sync in sync.prepare_paths():
-        for key in ('abs_src_dir', 'abs_dst_dir', 'abs_fls_map'):
+        for key in ('src_dir_abs', 'src_dir_fls', 'dst_dir_abs', 'dst_dir_fls'):
             assert key in to_sync
 
-        for src, dst in to_sync['abs_fls_map']:
+        for src in to_sync['src_dir_fls']:
             basename = os.path.basename(src)
+            dst = src.replace(to_sync['src_dir_abs'], to_sync['dst_dir_abs'])
 
             assert src.endswith(basename)
             assert dst.endswith(basename)
@@ -352,17 +358,20 @@ def test_prepare_paths(tmpdir, tmpfiles):
 
 
 @pytest.mark.parametrize("file_type", ['txt', 'TXT'])
-def test_prepare_paths_ignore_files(tmpdir, tmpfiles, file_type):
+@patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+def test_prepare_paths_ignore_files(mock_gvfs_wrapper, tmpdir, tmpfiles, file_type):
     """
     Test if Sync.prepare_paths() ignores given file types
     """
+    mock_gvfs_wrapper.return_value = ''
+
     sync = Sync(DEVICE_MTP_FAKE, tmpdir, DEVICE_DESTINATION,
                 ignore_file_types=[file_type])
     sync.set_source_abs()
     sync.set_destination_abs()
 
     for to_sync in sync.prepare_paths():
-        assert not to_sync['abs_fls_map']
+        assert not to_sync['src_dir_fls']
 
 
 # synchronization tests -------------------------------------------------------
@@ -373,8 +382,6 @@ def test_sync_empty_dir(mtp, tmpdir):
     """
     Test Sync.sync() doesn't sync an empty directory
     """
-    print '\n\n\n'
-    print 'first'
     sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR)
     sync.set_source_abs()
     sync.set_destination_abs()

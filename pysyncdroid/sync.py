@@ -175,7 +175,7 @@ class Sync(object):
 
     def set_destination_subdir_abs(self, src_subdir_abs):
         """
-        Create destination sub-directory absolute path.
+        Create destination subdir absolute path.
 
         :argument src_subdir_abs: source sub directory absolute path
         :type src_subdir_abs: str
@@ -192,22 +192,27 @@ class Sync(object):
 
         return os.path.join(self.destination, rel_src_subdir_pth)
 
-    def subdir_template(self, src_subdir_abs):
+    def sync_data_template(self, src_subdir_abs, dst_subdir_abs):
         """
-        Prepare sub-directory dict.
+        Prepare sync data dict.
 
-        :argument src_subdir_abs: source sub directory absolute path
+        :argument src_subdir_abs: source subdir absolute path
         :type src_subdir_abs: str
+        :argument dst_subdir_abs: destination subdir absolute path
+        :type dst_subdir_abs: str
 
         :returns dict
 
         """
-        dst_subdir_abs = self.set_destination_subdir_abs(src_subdir_abs)
-
         subdir = {}
-        subdir['abs_src_dir'] = src_subdir_abs
-        subdir['abs_dst_dir'] = dst_subdir_abs
-        subdir['abs_fls_map'] = []
+
+        subdir['src_dir_abs'] = src_subdir_abs.rstrip('/')
+        subdir['dst_dir_abs'] = dst_subdir_abs.rstrip('/')
+
+        # list of files to be synced
+        subdir['src_dir_fls'] = []
+        # list of files present in the destination directory prior to sync
+        subdir['dst_dir_fls'] = []
 
         return subdir
 
@@ -228,108 +233,158 @@ class Sync(object):
                 if extension in self.ignore_file_types:
                     raise exceptions.IgnoredTypeException
 
-    def collect_subdir_data(self, src_subdir_abs, src_subdir_files):
+    def get_source_subdir_data(self, src_subdir_files, sync_data):
         """
-        Collect sub-directory content to synchronize.
+        Collect source subdir content to synchronize.
 
-        :argument src_subdir_abs: source sub-directory absolute path
-        :type src_subdir_abs: str
-        :argument src_subdir_files: sub-directory files
+        :argument src_subdir_files: source subdir filenames
         :type src_subdir_files: list
-
-        :returns dict
+        :argument sync_data: sync data dictionary
+        :type sync_data: dict
 
         """
-        subdir = self.subdir_template(src_subdir_abs)
-
         for f in src_subdir_files:
             try:
                 self.handle_ignored_file_type(f)
             except exceptions.IgnoredTypeException:
                 continue
 
-            # append absolute paths
-            abs_src_f_pth = os.path.join(subdir['abs_src_dir'], f)
-            abs_dst_f_pth = os.path.join(subdir['abs_dst_dir'], f)
+            src_f_abs = os.path.join(sync_data['src_dir_abs'], f)
+            sync_data['src_dir_fls'].append(src_f_abs)
 
-            src_2_dst = (abs_src_f_pth, abs_dst_f_pth)
-            subdir['abs_fls_map'].append(src_2_dst)
-
-        return subdir
-
-    def prepare_paths(self):
+    def get_destination_subdir_data(self, sync_data):
         """
-        Prepare the list of files (and directories) that are about to be
-        synchronized.
+        Collect destination subdir content, i.e. files present in the dst
+        subdir prior to sync. We refere to these files as to 'unmatched' files.
+
+        If the destination subdir doesn't exist, create it.
+
+        :argument sync_data: sync data dictionary
+        :type sync_data: dict
+
+        """
+        if not os.path.exists(sync_data['dst_dir_abs']):
+            # ensure destination dir tree
+            self._verbose(
+                'Creating directory {d}'.format(d=sync_data['dst_dir_abs'])
+            )
+            self.gvfs_wrapper(gvfs.mkdir, sync_data['dst_dir_abs'])
+        else:
+            # get already existing files in the destination dir if any
+            for f in os.listdir(sync_data['dst_dir_abs']):
+                try:
+                    self.handle_ignored_file_type(f)
+                except exceptions.IgnoredTypeException:
+                    continue
+
+                dst_f_abs = os.path.join(sync_data['dst_dir_abs'], f)
+                sync_data['dst_dir_fls'].append(dst_f_abs)
+
+    def get_sync_data(self):
+        """
+        Get list of sync data dictionaries describing files (and directories)
+        that are about to be synchronized.
 
         :returns list
 
         """
-        self._verbose('Gathering the list of files to synchronize, '
-                      'this may take a while ...')
+        self._verbose('Gathering list of files to synchronize in "{s}", '
+                      'this may take a while ...'.format(s=self.source))
 
-        to_sync = []
+        sync_data_set = []
 
         for root, _, files in os.walk(self.source):
-            # skip directory without files, even if it contains a sub-directory
-            # as sub-directories are walked later on
+            # skip directory without files, even if it contains a subdir as
+            # subdirs are walked on later
             if not files:
                 continue
 
-            subdir_data = self.collect_subdir_data(root, files)
-            to_sync.append(subdir_data)
+            # create the sync data dict for this subdir
+            src_subdir_abs = root
+            dst_subdir_abs = self.set_destination_subdir_abs(src_subdir_abs)
+            sync_data = self.sync_data_template(src_subdir_abs, dst_subdir_abs)
 
-        return to_sync
+            # get files in both source and destination directory
+            self.get_source_subdir_data(files, sync_data)
+            self.get_destination_subdir_data(sync_data)
+
+            sync_data_set.append(sync_data)
+
+        return sync_data_set
+
+    def copy_file(self, src_file, dst_file):
+        """
+        Copy file from src to dst.
+
+        :argument src_file: source file absolute path
+        :type src_file: str
+        :argument dst_file: destination file absolute path
+        :type dst_file: str
+
+        """
+        self._verbose('Copying {s} to {d}'.format(s=src_file, d=dst_file))
+        self.gvfs_wrapper(gvfs.cp, src_file, dst_file)
+
+    def do_sync(self, sync_data):
+        """
+        Iterate over source dir files and copy then to the given destination.
+        While doing so, update the list of destinatin files.
+
+        :argument sync_data: sync data dictionary
+        :type sync_data: dict
+
+        """
+        for src_file in sync_data['src_dir_fls']:
+            dst_file = src_file.replace(
+                sync_data['src_dir_abs'], sync_data['dst_dir_abs']
+            )
+
+            if sync_data['dst_dir_fls'] and dst_file in sync_data['dst_dir_fls']:  # noqa
+                sync_data['dst_dir_fls'].remove(dst_file)
+
+                # ignore existing files
+                if not self.overwrite_existing:
+                    continue
+
+            self.copy_file(src_file, dst_file)
+
+    def handle_destination_dir_data(self, sync_data):
+        """
+        Manage files that were already in the destination directory but are
+        missing in the source directory (i.e. 'unmatched' files).
+
+        :argument sync_data: sync data dictionary
+        :type sync_data: dict
+
+        """
+        # end early if there were no files in the destination directory
+        if not sync_data['dst_dir_fls']:
+            return
+
+        for unmatched_file in sync_data['dst_dir_fls']:
+            if self.unmatched == REMOVE:
+                self._verbose('Removing {u}'.format(u=unmatched_file))
+                self.gvfs_wrapper(gvfs.rm, unmatched_file)
+
+            elif self.unmatched == SYNCHRONIZE:
+                dst_file = unmatched_file.replace(
+                    sync_data['dst_dir_abs'], sync_data['src_dir_abs']
+                )
+                self.copy_file(src_file=unmatched_file, dst_file=dst_file)
 
     def sync(self):
         """
         Synchronize files.
         """
-        for sync in self.prepare_paths():
-            if not sync['abs_fls_map']:
+        for sync_data in self.get_sync_data():
+            if not sync_data['src_dir_fls']:
                 self._verbose('No files to sync')
                 return
 
-            parent_dir = sync['abs_dst_dir']
+            self.do_sync(sync_data)
 
-            # ensure parent directory tree
-            if not os.path.exists(parent_dir):
-                self._verbose('Creating directory {d}'.format(d=parent_dir))
-                self.gvfs_wrapper(gvfs.mkdir, parent_dir)
-
-            # get already existing files if any
-            parent_files = set([os.path.join(parent_dir, f)
-                                for f in os.listdir(parent_dir)])
-
-            for src, dst in sync['abs_fls_map']:
-                if dst in parent_files:
-                    parent_files.remove(dst)
-
-                    # ignore existing files
-                    if not self.overwrite_existing:
-                        continue
-
-                self._verbose('Copying {s} to {d}'.format(s=src, d=dst))
-                self.gvfs_wrapper(gvfs.cp, src, dst)
-
-            # skip any other actions is unmatched files are ignored
+            # skip any other actions if unmatched files are ignored
             if self.unmatched == IGNORE:
                 continue
 
-            # manage files that were already in the destination directory
-            # but are missing in the source directory
-            for unmatched_file in parent_files:
-                if self.unmatched == REMOVE:
-                    self._verbose('Removing {u}'.format(u=unmatched_file))
-                    self.gvfs_wrapper(gvfs.rm, unmatched_file)
-
-                elif self.unmatched == SYNCHRONIZE:
-                    # revert the synchronization
-                    self.source, self.destination = self.destination, self.source  # NOQA
-
-                    # ignore everything but files synchronizing to source
-                    self.unmatched = IGNORE
-                    self.overwrite_existing = False
-
-                    # do it
-                    self.sync()
+            self.handle_destination_dir_data(sync_data)
