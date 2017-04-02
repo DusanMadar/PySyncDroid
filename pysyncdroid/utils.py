@@ -1,7 +1,6 @@
 """Shared functionality and constants"""
 
 
-import os
 import subprocess
 
 from pysyncdroid.exceptions import BashException

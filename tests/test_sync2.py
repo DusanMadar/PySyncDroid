@@ -32,7 +32,7 @@ class TestReadLink(unittest.TestCase):
         """
         self.assertEqual(readlink(''), '')
 
-    @patch('pysyncdroid.utils.os.path.expanduser')
+    @patch('pysyncdroid.sync.os.path.expanduser')
     def test_readlink_tilde(self, mock_expanduser):
         """
         Test 'readlink' is able to hadle '~' path.
