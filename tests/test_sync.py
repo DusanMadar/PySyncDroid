@@ -331,9 +331,9 @@ def test_destination_should_be_computer_relative(mtp):
 # paths preparation tests -----------------------------------------------------
 # -----------------------------------------------------------------------------
 @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
-def test_prepare_paths(mock_gvfs_wrapper, tmpdir, tmpfiles):
+def test_get_sync_data(mock_gvfs_wrapper, tmpdir, tmpfiles):
     """
-    Test if Sync.prepare_paths() returns an expected list of paths
+    Test if Sync.get_sync_data() returns an expected list of paths
     """
     mock_gvfs_wrapper.return_value = ''
 
@@ -341,7 +341,7 @@ def test_prepare_paths(mock_gvfs_wrapper, tmpdir, tmpfiles):
     sync.set_source_abs()
     sync.set_destination_abs()
 
-    for to_sync in sync.prepare_paths():
+    for to_sync in sync.get_sync_data():
         for key in ('src_dir_abs', 'src_dir_fls', 'dst_dir_abs', 'dst_dir_fls'):
             assert key in to_sync
 
@@ -359,9 +359,9 @@ def test_prepare_paths(mock_gvfs_wrapper, tmpdir, tmpfiles):
 
 @pytest.mark.parametrize("file_type", ['txt', 'TXT'])
 @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
-def test_prepare_paths_ignore_files(mock_gvfs_wrapper, tmpdir, tmpfiles, file_type):
+def test_get_sync_data_ignore_files(mock_gvfs_wrapper, tmpdir, tmpfiles, file_type):
     """
-    Test if Sync.prepare_paths() ignores given file types
+    Test if Sync.get_sync_data() ignores given file types
     """
     mock_gvfs_wrapper.return_value = ''
 
@@ -370,7 +370,7 @@ def test_prepare_paths_ignore_files(mock_gvfs_wrapper, tmpdir, tmpfiles, file_ty
     sync.set_source_abs()
     sync.set_destination_abs()
 
-    for to_sync in sync.prepare_paths():
+    for to_sync in sync.get_sync_data():
         assert not to_sync['src_dir_fls']
 
 
