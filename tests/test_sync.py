@@ -18,7 +18,7 @@ from pysyncdroid import gvfs
 from pysyncdroid.exceptions import DeviceException
 from pysyncdroid.find_device import get_connection_details, get_mtp_details
 from pysyncdroid.sync import Sync
-from pysyncdroid.sync import REMOVE, SYNCHRONIZE
+from pysyncdroid.utils import REMOVE, SYNCHRONIZE
 
 
 #: Constants

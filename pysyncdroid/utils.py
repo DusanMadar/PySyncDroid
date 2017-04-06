@@ -6,6 +6,13 @@ import subprocess
 from pysyncdroid.exceptions import BashException
 
 
+#: constants
+# unmatched files actions
+IGNORE = 'ignore'
+REMOVE = 'remove'
+SYNCHRONIZE = 'synchronize'
+
+
 def run_bash_cmd(cmd):
     """
     Run bash command.

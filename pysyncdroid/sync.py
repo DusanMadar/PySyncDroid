@@ -10,14 +10,7 @@ import os
 
 from pysyncdroid import exceptions
 from pysyncdroid import gvfs
-from pysyncdroid.utils import run_bash_cmd
-
-
-#: constants
-# unmatched files actions
-IGNORE = 'ignore'
-REMOVE = 'remove'
-SYNCHRONIZE = 'synchronize'
+from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, run_bash_cmd
 
 
 def readlink(path):
@@ -300,13 +293,14 @@ class Sync(object):
 
         sync_data_set = []
 
-        for src_subdir_abs, _, files in os.walk(self.source):
+        for root, _, files in os.walk(self.source):
             # skip directory without files, even if it contains a subdir as
             # subdirs are walked on later
             if not files:
                 continue
 
             # create the sync data dict for this subdir
+            src_subdir_abs = root
             dst_subdir_abs = self.set_destination_subdir_abs(src_subdir_abs)
             sync_data = self.sync_data_template(src_subdir_abs, dst_subdir_abs)
 
