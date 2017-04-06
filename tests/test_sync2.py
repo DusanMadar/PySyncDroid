@@ -1,16 +1,16 @@
 """Tests for synchronization functionality."""
 
 
-from mock import patch
+from mock import call, patch
 import os
 from StringIO import StringIO
 import unittest
 
 import pysyncdroid
 from pysyncdroid.exceptions import BashException, IgnoredTypeException
-from pysyncdroid.gvfs import mkdir
+from pysyncdroid.gvfs import cp, mkdir, rm
 from pysyncdroid.find_device import MTP_URL_PATTERN, MTP_GVFS_PATH_PATTERN
-from pysyncdroid.sync import Sync, readlink
+from pysyncdroid.sync import Sync, readlink, REMOVE, SYNCHRONIZE
 
 
 FAKE_MTP_DETAILS = (
@@ -317,7 +317,8 @@ class TestSync(unittest.TestCase):
         only for files with specified extensions.
         """
         sync = Sync(FAKE_MTP_DETAILS, '', '', ignore_file_types=['jpg'])
-
+        sync.set_source_abs()
+        sync.set_destination_abs()
         sync.handle_ignored_file_type('/tmp/test.png')
 
         with self.assertRaises(IgnoredTypeException):
@@ -334,11 +335,12 @@ class TestSync(unittest.TestCase):
         mock_handle_ignored_file_type.side_effect = [
             None, IgnoredTypeException, None
         ]
+        src_subdir_files = ['song.mp3', 'cover.jpg', 'demo.mp3']
 
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
         sync_data = self._create_sync_data(sync)
-
-        src_subdir_files = ['song.mp3', 'cover.jpg', 'demo.mp3']
         sync.get_source_subdir_data(src_subdir_files, sync_data)
 
         self.assertEqual(sync_data['src_dir_fls'], [
@@ -356,14 +358,18 @@ class TestSync(unittest.TestCase):
         Test 'get_destination_subdir_data' creates destination direcotry if it
         doesn't exist.
         """
-        mock_path_exists.return_value = False
+        mock_path_exists.side_effect = (True, False)
 
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
         sync_data = self._create_sync_data(sync)
-
         sync.get_destination_subdir_data(sync_data)
 
-        mock_gvfs_wrapper.assert_called_once_with(mkdir, 'Card/Music/testdir')
+        mock_gvfs_wrapper.assert_called_once_with(
+            mkdir,
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+        )
         self.assertFalse(sync_data['dst_dir_fls'])
 
     @patch('pysyncdroid.sync.os.path.exists')
@@ -383,14 +389,215 @@ class TestSync(unittest.TestCase):
         ]
 
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
         sync_data = self._create_sync_data(sync)
-
         sync.get_destination_subdir_data(sync_data)
 
         self.assertEqual(sync_data['dst_dir_fls'], [
-            'Card/Music/testdir/song.mp3', 'Card/Music/testdir/demo.mp3'
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3'  # noqa
         ])
 
+    #
+    # 'get_sync_data()'
+    @patch('pysyncdroid.sync.os.walk')
+    @patch.object(pysyncdroid.sync.Sync, 'set_destination_subdir_abs')
+    @patch.object(pysyncdroid.sync.Sync, 'get_destination_subdir_data')
+    def test_get_sync_data(
+        self, mock_get_destination_subdir_data,
+        mock_set_destination_subdir_abs, mock_oswalk
+    ):
+        """
+        Test 'get_sync_data' gets list of valid sync_data dictionaries.
+        """
+        mock_oswalk.return_value = (
+            ('/tmp/testdir', ['testsubdir'], ['song.mp3', 'demo.mp3']),
+            ('/tmp/testdir/testsubdir', ['testsubdir2'], []),
+            ('/tmp/testdir/testsubdir/testsubdir2', [], ['song2.mp3']),
+        )
+        mock_set_destination_subdir_abs.side_effect = (
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir',  # noqa
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/testsubdir2'  # noqa
+        )
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync_data_set = sync.get_sync_data()
+
+        self.assertTrue(mock_set_destination_subdir_abs.call_count, 2)
+        self.assertTrue(mock_get_destination_subdir_data.call_count, 2)
+
+        expected_sync_data_set = [
+            {
+                'src_dir_abs': '/tmp/testdir',
+                'src_dir_fls': [
+                    '/tmp/testdir/song.mp3',
+                    '/tmp/testdir/demo.mp3'
+                ],
+                'dst_dir_fls': [],
+                'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+            },
+            {
+                'src_dir_abs': '/tmp/testdir/testsubdir/testsubdir2',
+                'src_dir_fls': [
+                    '/tmp/testdir/testsubdir/testsubdir2/song2.mp3'
+                ],
+                'dst_dir_fls': [],
+                'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/testsubdir2'  # noqa
+            }
+        ]
+
+        self.assertIsInstance(sync_data_set, list)
+        self.assertEqual(sync_data_set, expected_sync_data_set)
+
+    #
+    # 'copy_file()'
+    @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+    def test_copy_file(self, mock_gfvs_wrapper):
+        """
+        Test 'copy_file' copies a file from source to destination.
+        """
+        src_file = '/tmp/song.mp3'
+        dst_file = 'Card/Musicsong.mp3'
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.copy_file(src_file, dst_file)
+
+        mock_gfvs_wrapper.assert_called_once_with(cp, src_file, dst_file)
+
+    #
+    # 'do_sync()'
+    @patch.object(pysyncdroid.sync.Sync, 'copy_file')
+    def test_do_sync(self, mock_copy_file):
+        """
+        Test 'do_sync' copies source files to their destination and updates
+        destination files list.
+        """
+        sync_data = {
+            'src_dir_abs': '/tmp/testdir',
+            'src_dir_fls': [
+                '/tmp/testdir/song.mp3',
+                '/tmp/testdir/demo.mp3'
+            ],
+            'dst_dir_fls': [
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3',  # noqa
+            ],
+            'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+        }
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.do_sync(sync_data)
+
+        self.assertEqual(
+            sync_data['dst_dir_fls'],
+            ['/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3']  # noqa
+        )
+
+        mock_copy_file.assert_called_once_with(
+            '/tmp/testdir/song.mp3',
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+        )
+
+    @patch.object(pysyncdroid.sync.Sync, 'copy_file')
+    def test_do_sync_overwrite(self, mock_copy_file):
+        """
+        Test 'do_sync' is able to overwrite existing destination files.
+        """
+        sync_data = {
+            'src_dir_abs': '/tmp/testdir',
+            'src_dir_fls': [
+                '/tmp/testdir/song.mp3',
+                '/tmp/testdir/demo.mp3'
+            ],
+            'dst_dir_fls': [
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3',  # noqa
+            ],
+            'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+        }
+
+        sync = Sync(
+            FAKE_MTP_DETAILS, '/tmp', 'Card/Music', overwrite_existing=True
+        )
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.do_sync(sync_data)
+
+        calls = (
+            call(
+                '/tmp/testdir/song.mp3',
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+                ),
+            call(
+                '/tmp/testdir/demo.mp3',
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
+                ),
+        )
+        mock_copy_file.assert_has_calls(calls)
+
+    #
+    # 'handle_destination_dir_data()'
+    @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+    def test_handle_destination_dir_data_no_files(self, mock_gfvs_wrapper):
+        """
+        Test 'handle_destination_dir_data' ends early when there are no data
+        to process.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=REMOVE)
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.handle_destination_dir_data({'dst_dir_fls': []})
+
+        mock_gfvs_wrapper.assert_not_called()
+
+    @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+    def test_handle_destination_dir_data_remove(self, mock_gfvs_wrapper):
+        """
+        Test 'handle_destination_dir_data' removes unmatched destination data.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=REMOVE)
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.handle_destination_dir_data({
+            'dst_dir_fls': [
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+            ]
+        })
+
+        mock_gfvs_wrapper.assert_called_once_with(
+            rm, '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+        )
+
+    @patch.object(pysyncdroid.sync.Sync, 'copy_file')
+    def test_handle_destination_dir_data_sync(self, mock_copy_file):
+        """
+        Test 'handle_destination_dir_data' synchronizes unmatched destination
+        data to source.
+        """
+        sync = Sync(
+            FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=SYNCHRONIZE
+        )
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.handle_destination_dir_data({
+            'src_dir_abs': '/tmp/testdir',
+            'dst_dir_fls': [
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+            ],
+            'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir',  # noqa
+        })
+
+        mock_copy_file.assert_called_once_with(
+            dst_file='/tmp/testdir/song.mp3',
+            src_file='/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3'  # noqa
+        )
 
 if __name__ == '__main__':
     unittest.main()
