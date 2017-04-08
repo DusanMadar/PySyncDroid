@@ -60,7 +60,7 @@ python setup.py install
 ### Examples
 For more details about how to use PySyncDroid and what options are available
 ``` bash
-pysyncdroid -h
+dm@Z580:~/Desktop$ pysyncdroid -h
 ```
 Synchronize contents of the *Rock* directory from computer to the device (`vendor` and `model` names are *case insensitive*)
 ``` bash
