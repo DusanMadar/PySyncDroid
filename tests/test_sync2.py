@@ -9,14 +9,26 @@ import unittest
 import pysyncdroid
 from pysyncdroid.exceptions import BashException, IgnoredTypeException
 from pysyncdroid.gvfs import cp, mkdir, rm
-from pysyncdroid.find_device import MTP_URL_PATTERN, MTP_GVFS_PATH_PATTERN
 from pysyncdroid.sync import Sync, readlink, REMOVE, SYNCHRONIZE
 
 
 FAKE_MTP_DETAILS = (
-    MTP_URL_PATTERN.format(b='002', d='003'),
-    MTP_GVFS_PATH_PATTERN.format(u='<user>', b='002', d='003')
+    'mtp://[usb:002,003]/',
+    '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D',
 )
+
+FAKE_SYNC_DATA = {
+    'src_dir_abs': '/tmp/testdir',
+    'src_dir_fls': [
+        '/tmp/testdir/song.mp3',
+        '/tmp/testdir/demo.mp3'
+    ],
+    'dst_dir_fls': [
+        '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
+        '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3',  # noqa
+    ],
+    'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+}
 
 
 class TestReadLink(unittest.TestCase):
@@ -36,7 +48,7 @@ class TestReadLink(unittest.TestCase):
     @patch('pysyncdroid.sync.os.path.expanduser')
     def test_readlink_tilde(self, mock_expanduser):
         """
-        Test 'readlink' is able to hadle '~' path.
+        Test 'readlink' hadles '~' path.
         """
         mock_expanduser.return_value = '/home/<user name>'
         self.mock_run_bash_cmd.return_value = mock_expanduser.return_value
@@ -44,14 +56,14 @@ class TestReadLink(unittest.TestCase):
 
     def test_readlink_slash(self):
         """
-        Test 'readlink' is able to hadle '/' path (and doesn't strip it).
+        Test 'readlink' hadles '/' path (and doesn't strip it).
         """
         self.mock_run_bash_cmd.return_value = '/'
         self.assertEqual(readlink('/'), '/')
 
     def test_readlink_nonexisting(self):
         """
-        Test 'readlink' is agnosting to the path existance and simply adds the
+        Test 'readlink' is agnostinc to the path existance and simply adds the
         provided string (without a slash) to the current working directory.
         """
         self.mock_run_bash_cmd.return_value = os.path.join(os.getcwd(), 'foo')
@@ -66,12 +78,12 @@ class TestReadLink(unittest.TestCase):
 
 
 class TestSync(unittest.TestCase):
-    def _create_sync_data(self, sync):
+    def _create_empty_sync_data(self, sync):
         """
-        Create sync data dictionary.
+        Create empty sync data dictionary.
 
-        :argument sync_data: sync data dictionary
-        :type sync_data: dict
+        :argument sync: Sync instance
+        :type sync: object
 
         :returns dict
 
@@ -86,7 +98,7 @@ class TestSync(unittest.TestCase):
     @patch('sys.stdout', new_callable=StringIO)
     def test_verbose_active(self, mock_stdout):
         """
-        Test '_verbose' prints a given message in verbose mode.
+        Test '_verbose' prints a given message if Sync is in verbose mode.
         """
         sync = Sync(FAKE_MTP_DETAILS, '', '', verbose=True)
 
@@ -97,7 +109,8 @@ class TestSync(unittest.TestCase):
     @patch('sys.stdout', new_callable=StringIO)
     def test_verbose_inactive(self, mock_stdout):
         """
-        Test '_verbose' doesn't print a given message if not in verbose mode.
+        Test '_verbose' doesn't print a given message if Sync isn't in
+        verbose mode.
         """
         sync = Sync(FAKE_MTP_DETAILS, '', '', verbose=False)
 
@@ -277,7 +290,7 @@ class TestSync(unittest.TestCase):
     def test_set_destination_subdir_absh(self):
         """
         Test 'set_destination_subdir_abs' creates an absolute path for a
-        destination subdirectory.
+        destination subdir.
         """
         sync = Sync(FAKE_MTP_DETAILS, '~/Music', 'Card/Music')
         sync.set_source_abs()
@@ -293,7 +306,7 @@ class TestSync(unittest.TestCase):
     # 'sync_data_template()'
     def test_sync_data_template(self):
         """
-        Test 'sync_data_template' creates a dict with expected keys.
+        Test 'sync_data_template' creates a sync data dict with expected keys.
         """
         sync = Sync(FAKE_MTP_DETAILS, '~/Music', 'Card/Music')
         sync.set_source_abs()
@@ -303,7 +316,6 @@ class TestSync(unittest.TestCase):
         dst_subdir_abs = os.path.join(sync.destination, 'testdir')
         sync_data = sync.sync_data_template(src_subdir_abs, dst_subdir_abs)
 
-        self.assertIsInstance(sync_data, dict)
         self.assertIn('src_dir_abs', sync_data)
         self.assertIn('src_dir_fls', sync_data)
         self.assertIn('dst_dir_abs', sync_data)
@@ -319,8 +331,11 @@ class TestSync(unittest.TestCase):
         sync = Sync(FAKE_MTP_DETAILS, '', '', ignore_file_types=['jpg'])
         sync.set_source_abs()
         sync.set_destination_abs()
+
+        # this one is fine
         sync.handle_ignored_file_type('/tmp/test.png')
 
+        # this one should be ignored
         with self.assertRaises(IgnoredTypeException):
             sync.handle_ignored_file_type('/tmp/test.jpg')
 
@@ -340,7 +355,7 @@ class TestSync(unittest.TestCase):
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
         sync.set_source_abs()
         sync.set_destination_abs()
-        sync_data = self._create_sync_data(sync)
+        sync_data = self._create_empty_sync_data(sync)
         sync.get_source_subdir_data(src_subdir_files, sync_data)
 
         self.assertEqual(sync_data['src_dir_fls'], [
@@ -363,7 +378,7 @@ class TestSync(unittest.TestCase):
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
         sync.set_source_abs()
         sync.set_destination_abs()
-        sync_data = self._create_sync_data(sync)
+        sync_data = self._create_empty_sync_data(sync)
         sync.get_destination_subdir_data(sync_data)
 
         mock_gvfs_wrapper.assert_called_once_with(
@@ -391,7 +406,7 @@ class TestSync(unittest.TestCase):
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
         sync.set_source_abs()
         sync.set_destination_abs()
-        sync_data = self._create_sync_data(sync)
+        sync_data = self._create_empty_sync_data(sync)
         sync.get_destination_subdir_data(sync_data)
 
         self.assertEqual(sync_data['dst_dir_fls'], [
@@ -477,26 +492,13 @@ class TestSync(unittest.TestCase):
         Test 'do_sync' copies source files to their destination and updates
         destination files list.
         """
-        sync_data = {
-            'src_dir_abs': '/tmp/testdir',
-            'src_dir_fls': [
-                '/tmp/testdir/song.mp3',
-                '/tmp/testdir/demo.mp3'
-            ],
-            'dst_dir_fls': [
-                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
-                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3',  # noqa
-            ],
-            'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
-        }
-
         sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
         sync.set_source_abs()
         sync.set_destination_abs()
-        sync.do_sync(sync_data)
+        sync.do_sync(FAKE_SYNC_DATA)
 
         self.assertEqual(
-            sync_data['dst_dir_fls'],
+            FAKE_SYNC_DATA['dst_dir_fls'],
             ['/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3']  # noqa
         )
 
@@ -510,25 +512,12 @@ class TestSync(unittest.TestCase):
         """
         Test 'do_sync' is able to overwrite existing destination files.
         """
-        sync_data = {
-            'src_dir_abs': '/tmp/testdir',
-            'src_dir_fls': [
-                '/tmp/testdir/song.mp3',
-                '/tmp/testdir/demo.mp3'
-            ],
-            'dst_dir_fls': [
-                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
-                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3',  # noqa
-            ],
-            'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
-        }
-
         sync = Sync(
             FAKE_MTP_DETAILS, '/tmp', 'Card/Music', overwrite_existing=True
         )
         sync.set_source_abs()
         sync.set_destination_abs()
-        sync.do_sync(sync_data)
+        sync.do_sync(FAKE_SYNC_DATA)
 
         calls = (
             call(
@@ -598,6 +587,62 @@ class TestSync(unittest.TestCase):
             dst_file='/tmp/testdir/song.mp3',
             src_file='/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3'  # noqa
         )
+
+    #
+    # 'sync()'
+    @patch.object(pysyncdroid.sync.Sync, 'do_sync')
+    @patch.object(pysyncdroid.sync.Sync, 'get_sync_data')
+    def test_sync_no_data(self, mock_get_sync_data, mock_do_sync):
+        """
+        Test 'sync' ends early if there are no files to synchronize.
+        """
+        mock_get_sync_data.return_value = [{'src_dir_fls': []}]
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.sync()
+
+        mock_do_sync.assert_not_called()
+
+    @patch.object(pysyncdroid.sync.Sync, 'do_sync')
+    @patch.object(pysyncdroid.sync.Sync, 'get_sync_data')
+    @patch.object(pysyncdroid.sync.Sync, 'handle_destination_dir_data')
+    def test_sync_ignore_unmatched(
+        self, mock_handle_destination_dir_data, mock_get_sync_data, mock_do_sync
+    ):
+        """
+        Test 'sync' ignores unmatched files.
+        """
+        mock_get_sync_data.return_value = [FAKE_SYNC_DATA]
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.sync()
+
+        mock_do_sync.assert_called_once_with(FAKE_SYNC_DATA)
+        mock_handle_destination_dir_data.assert_not_called()
+
+    @patch.object(pysyncdroid.sync.Sync, 'do_sync')
+    @patch.object(pysyncdroid.sync.Sync, 'get_sync_data')
+    @patch.object(pysyncdroid.sync.Sync, 'handle_destination_dir_data')
+    def test_sync_handle_unmatched(
+        self, mock_handle_destination_dir_data, mock_get_sync_data, mock_do_sync
+    ):
+        """
+        Test 'sync' handles (removes, in thos case) unmatched files.
+        """
+        mock_get_sync_data.return_value = [FAKE_SYNC_DATA]
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=REMOVE)
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.sync()
+
+        mock_do_sync.assert_called_once_with(FAKE_SYNC_DATA)
+        mock_handle_destination_dir_data.assert_called_once_with(FAKE_SYNC_DATA)
+
 
 if __name__ == '__main__':
     unittest.main()
