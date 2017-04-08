@@ -7,7 +7,7 @@ No special setup is required for the Android device.
 PySyncDroid leverages `lsusb`, `gvfs`, `mtp` and `readlink`.
 
 ### lsusb
-Make sure you have `lsusb` installed on your computer as it is used to discover the connected device.
+Make sure you have `lsusb` installed on your computer as it is used to discover USB connected devices.
 
 ### gvfs
 Here is a list of gvfs related packages I have installed on my system (Ubuntu 14.04 64b):
@@ -52,9 +52,9 @@ python setup.py install
 1. Connect your Android device with an USB cable to your computer
 2. Unlock your device to notify the computer about its presence
     * unlock is conducted only once and it is **not necessary** that the device stays unlocked during the synchronizing process
-    * `Developer Options` doesn't have to be enabled on the device
+    * `Developer Options` don't have to be enabled on the device
 3. Make sure the device is connected as a **Media device (MTP)**
-   * you should now be able to see your device in the *computer file manager*
+   * you should now be able to see your device in *computer file manager*
 4. Synchronize using PySyncDroid
 
 ### Examples
@@ -80,10 +80,10 @@ dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -f /home/dm/Desktop/src2de
 ### Device not found error
 If you keep getting the following error message
 
-`pysyncdroid.exceptions.DeviceException: Device "<vendor> <model>" not found`
+`Device "<vendor> <model>" not found`
 
 make sure the device is connected to the computer and you can access it via file manager.
-Run the `lsusb` command and check the output for desired `vendor` or `model` names. For example, I get the following string for my Samsung Galaxy SIII
+Run `lsusb` and check the output for desired `vendor` or `model` names. For example, I get the following string for my Samsung Galaxy SIII
 
 `Bus 001 Device 011: ID 04e8:6860 Samsung Electronics Co., Ltd GT-I9100 Phone [Galaxy S II], GT-I9300 Phone [Galaxy S III], GT-P7500 [Galaxy Tab 10.1]`
 
@@ -103,4 +103,4 @@ and therefore I use `PySyncDroid` as
 If the sync process takes a bit longer (10+ minutes), it's very likely that you will get an error like:
 `The name :<name> was not provided by any .service files` or `Message did not receive a reply (timeout by message bus)`.
 
-It seems like *the device drops the MTP connection* after a certain amount of time. Unlocking the device again will reconnect it so you can re-run the last `pysyncdroid` command. It will continue to sync where it left off (assuming you are not using the `-o` flag).
+It seems like *the device drops the MTP connection* after a certain amount of time/certaing amount of data transfered. Unlocking the device again will reconnect it so you can re-run the last `pysyncdroid` command. It will continue to sync where it left off (assuming you are not using the `-o` flag).
