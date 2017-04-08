@@ -93,4 +93,4 @@ Run `lsusb` and check the output for desired `vendor` or `model` names. For exam
 If the sync process takes a bit longer (10+ minutes), it's very likely that you will get an error like:
 `The name :<name> was not provided by any .service files` or `Message did not receive a reply (timeout by message bus)`.
 
-It seems like *the device drops the MTP connection* after a certain amount of time/certaing amount of data transfered. Unlocking the device again will reconnect it so you can re-run the last `pysyncdroid` command. It will continue to sync where it left off (assuming you are not using the `-o` flag).
+It seems like *the device drops the MTP connection* after a certain amount of time/certaing amount of data transfered. Resetting USB connection (remove and plug the cable back to your computer) and unlocking the device again will reconnect it so you can re-run the last `pysyncdroid` command. It will continue to sync where it left off (assuming you are not using the `-o` flag).
