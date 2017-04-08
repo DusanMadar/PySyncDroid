@@ -7,7 +7,8 @@
 
 import argparse
 
-from pysyncdroid import find_device
+from pysyncdroid.exceptions import DeviceException, MappingFileException
+from pysyncdroid.find_device import get_connection_details, get_mtp_details
 from pysyncdroid.sync import Sync, IGNORE, REMOVE, SYNCHRONIZE
 
 
@@ -37,48 +38,100 @@ parser.add_argument('-i', '--ignore-file-type', nargs='+', default=None,
                     help='Ignored file type(s), e.g. html, txt, ...')
 
 
-def main():
+def parse_sync_mapping_file(sync_mapping_file, sources, destinations):
+    """
+    Parse sync mapping file.
+
+    :argument sync_mapping_file: Sync mapping file absolute path
+    :type sync_mapping_file: str
+    :argument sources: list of sources
+    :type sources: list
+    :argument destinations: list of destinations
+    :type destinations: list
+
+    """
+    with open(sync_mapping_file, 'r') as f:
+        mapping_lines = f.readlines()
+
+    for line in mapping_lines:
+        line = line.replace('\n', '')
+        if not line:
+            continue
+
+        source, destination = line.split('==>')
+        if not source or not destination:
+            raise MappingFileException('Please separate source and destination'
+                                       'with "==>".\n'
+                                       'Problematic line: "{}"'.format(line))
+
+        sources.append(source)
+        destinations.append(destination)
+
+
+def parse_sync_info(args):
+    """
+    Parse sync info, i.e. handle combinations of soure, destination and file
+    arguments.
+
+    :argument args: command line arguments namespace
+    :type args: object
+
+    :returns tuple
+
+    """
     sources = []
     destinations = []
 
-    args = parser.parse_args()
-
-    # no sync info supplied (none of source, destination, file)
     if args.file is None:
+        # no sync info supplied (none of source, destination, file)
         if args.source is None or args.destination is None:
-            return ('Either mapping file or a combination of '
-                    'source and destination must be defined.')
+            raise argparse.ArgumentError(
+                None,
+                'Either sync mapping file (-f) or source (-s) and destination '
+                '(-d) must be defined.'
+            )
 
         sources.append(args.source)
         destinations.append(args.destination)
 
-    # when syncing from file, source and destination cannot be set
     else:
+        # when syncing from file, source and destination cannot be set
         if args.source is not None or args.destination is not None:
-            return ('Source and destination cannot be set when '
-                    'syncing from a file.')
+            raise argparse.ArgumentError(
+                None,
+                'Source (-s) and destination (-d) cannot be set when syncing '
+                'from file (-f).'
+            )
 
-        with open(args.file, 'r') as f:
-            mapping_lines = f.readlines()
+        parse_sync_mapping_file(args.file, sources, destinations)
 
-        for line in mapping_lines:
-            line = line.replace('\n', '')
-            if not line:
-                continue
+    return sources, destinations
 
-            line_parts = line.split('==>')
-            sources.append(line_parts[0])
-            destinations.append(line_parts[1])
 
-    usb_bus, device = find_device.get_connection_details(vendor=args.vendor,
-                                                         model=args.model)
-    mtp_details = find_device.get_mtp_details(usb_bus, device)
+def main():
+    args = parser.parse_args()
+
+    try:
+        usb_bus_id, device_id = get_connection_details(args.vendor, args.model)
+        mtp_details = get_mtp_details(usb_bus_id, device_id)
+    except DeviceException as exc:
+        return exc.message
+
+    try:
+        sources, destinations = parse_sync_info(args)
+    except (argparse.ArgumentError, MappingFileException) as exc:
+        return exc.message
 
     for source, destination in zip(sources, destinations):
+        source = source.strip()
+        destination = destination.strip()
+
         sync = Sync(mtp_details=mtp_details,
                     source=source, destination=destination,
-                    unmatched=args.unmatched, overwrite_existing=args.overwrite,
-                    verbose=args.verbose, ignore_file_types=args.ignore_file_type)  # noqa
+                    verbose=args.verbose,
+                    unmatched=args.unmatched,
+                    overwrite_existing=args.overwrite,
+                    ignore_file_types=args.ignore_file_type)
 
         sync.set_source_abs()
         sync.set_destination_abs()
