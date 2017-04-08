@@ -1,546 +1,648 @@
-"""Tests for Sync functionality"""
+"""Tests for synchronization functionality."""
 
 
-import errno
-import getpass
-from mock import patch
+from mock import call, patch
 import os
-import random
-import shutil
-import string
-import tempfile
-import time
-
-import pytest
+from StringIO import StringIO
+import unittest
 
 import pysyncdroid
-from pysyncdroid import gvfs
-from pysyncdroid.exceptions import DeviceException
-from pysyncdroid.find_device import get_connection_details, get_mtp_details
-from pysyncdroid.sync import Sync
-from pysyncdroid.utils import REMOVE, SYNCHRONIZE
+from pysyncdroid.exceptions import BashException, IgnoredTypeException
+from pysyncdroid.gvfs import cp, mkdir, rm
+from pysyncdroid.sync import Sync, readlink, REMOVE, SYNCHRONIZE
 
 
-#: Constants
-CURRENT_DIRECTORY = os.getcwd()
-CURRENT_USER = getpass.getuser()
+FAKE_MTP_DETAILS = (
+    'mtp://[usb:002,003]/',
+    '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D',
+)
 
-# tmpdir name
-PYSYNCDROID = 'pysyncdroid_'
-
-# computer
-COMPUTER_HOME = '/home/{u}'.format(u=CURRENT_USER)
-COMPUTER_SOURCE = os.path.join(COMPUTER_HOME, 'Music')
-COMPUTER_SOURCE_FILE = os.path.join(COMPUTER_HOME, '.bashrc')
-
-# device
-# NOTE update these constants to match your device name and/or settings
-DEVICE_VENDOR = 'samsung'
-DEVICE_MODEL = 'galaxy'
-DEVICE_SOURCE = 'Card/Music'
-DEVICE_SOURCE_FAKE = 'CCard/Music'
-DEVICE_DESTINATION = DEVICE_SOURCE
-DEVICE_DESTINATION_TEST_DIR = (DEVICE_DESTINATION + os.sep + PYSYNCDROID +
-                               ''.join(random.sample(string.ascii_letters, 6)))
-DEVICE_MTP_FAKE = ('mtp://[usb:<usb_id>,<device_id>]/', '/mtp_path')
-
-DEVICE_NOT_CONNECTED = "Testing device not connected"
-
-# expected exception messages
-NOT_EXISTS = 'does not exist on computer or on device'
-NOT_DIRECTORY = 'is not a directory'
+FAKE_SYNC_DATA = {
+    'src_dir_abs': '/tmp/testdir',
+    'src_dir_fls': [
+        '/tmp/testdir/song.mp3',
+        '/tmp/testdir/demo.mp3'
+    ],
+    'dst_dir_fls': [
+        '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
+        '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3',  # noqa
+    ],
+    'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+}
 
 
-def device_not_connected():
-    """
-    Helper - check if testing device not connected
+class TestReadLink(unittest.TestCase):
+    def setUp(self):
+        self.patcher = patch('pysyncdroid.utils.run_bash_cmd')
+        self.mock_run_bash_cmd = self.patcher.start()
 
-    :returns bool
+    def tearDown(self):
+        self.patcher.stop()
 
-    """
-    try:
-        get_connection_details(vendor=DEVICE_VENDOR, model=DEVICE_MODEL)
-    except DeviceException:
-        device_not_connected = True
-    else:
-        device_not_connected = False
-    finally:
-        return device_not_connected
+    def test_readlink_no_path(self):
+        """
+        Test 'readlink' returns an empty string in case of no path to read.
+        """
+        self.assertEqual(readlink(''), '')
 
+    @patch('pysyncdroid.sync.os.path.expanduser')
+    def test_readlink_tilde(self, mock_expanduser):
+        """
+        Test 'readlink' hadles '~' path.
+        """
+        mock_expanduser.return_value = '/home/<user name>'
+        self.mock_run_bash_cmd.return_value = mock_expanduser.return_value
+        self.assertEqual(readlink('~'), mock_expanduser.return_value)
 
-@pytest.fixture(scope='session', autouse=True)
-def tmpdir(request):
-    """
-    Fixture - create/remove temporary directory
+    def test_readlink_slash(self):
+        """
+        Test 'readlink' hadles '/' path (and doesn't strip it).
+        """
+        self.mock_run_bash_cmd.return_value = '/'
+        self.assertEqual(readlink('/'), '/')
 
-    :returns str
+    def test_readlink_nonexisting(self):
+        """
+        Test 'readlink' is agnostinc to the path existance and simply adds the
+        provided string (without a slash) to the current working directory.
+        """
+        self.mock_run_bash_cmd.return_value = os.path.join(os.getcwd(), 'foo')
+        self.assertEqual(readlink('foo'), self.mock_run_bash_cmd.return_value)
 
-    """
-    tmpdir = tempfile.mkdtemp(prefix=PYSYNCDROID, suffix='_testing')
-
-    def fin():
-        try:
-            shutil.rmtree(tmpdir)
-        except OSError as exc:
-            if exc.errno != errno.ENOENT:
-                raise
-
-    request.addfinalizer(fin)
-    return tmpdir
-
-
-@pytest.fixture(scope='module')
-def tmpfiles(tmpdir):
-    """
-    Fixture - create 20 test *.txt files
-
-    :argument tmpdir: tmpdir fixture
-    :type tmpdir: fixture
-
-    :returns list
-
-    """
-    tmpfiles = []
-    for _ in range(21):
-        _, path = tempfile.mkstemp(prefix=PYSYNCDROID, suffix='.txt', dir=tmpdir)  # noqa
-        tmpfiles.append(path)
-
-    return tmpfiles
+    def test_readlink_device_path(self):
+        """
+        Test 'readlink' returns the given path if it's unable to follow it.
+        """
+        self.mock_run_bash_cmd.return_value = 'Phone/Card'
+        self.assertEqual(readlink('Phone/Card'), 'Phone/Card')
 
 
-@pytest.fixture(scope='module')
-def tmpfiles_names(tmpfiles):
-    """
-    Fixture - get a list (actually, a set) of tempfile names.
+class TestSync(unittest.TestCase):
+    def _create_empty_sync_data(self, sync):
+        """
+        Create empty sync data dictionary.
 
-    :argument tmpdir: tmpfiles fixture
-    :type tmpdir: fixture
+        :argument sync: Sync instance
+        :type sync: object
 
-    :returns set
+        :returns dict
 
-    """
-    tmpfiles_names = set([os.path.basename(tmpf) for tmpf in tmpfiles
-                          if os.path.isfile(tmpf)])
+        """
+        src_subdir_abs = os.path.join(sync.source, 'testdir')
+        dst_subdir_abs = os.path.join(sync.destination, 'testdir')
 
-    return tmpfiles_names
+        return sync.sync_data_template(src_subdir_abs, dst_subdir_abs)
 
+    #
+    # '_verbose()'
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_verbose_active(self, mock_stdout):
+        """
+        Test '_verbose' prints a given message if Sync is in verbose mode.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '', '', verbose=True)
 
-@pytest.fixture()
-def tmpdir_device_remove(request, mtp):
-    """
-    Fixture - remove device temporary directory
+        test_message = 'Hello World!'
+        sync._verbose(test_message)
+        self.assertEqual(test_message, mock_stdout.getvalue().strip())
 
-    :argument mtp: mtp fixture
-    :type mtp: fixture
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_verbose_inactive(self, mock_stdout):
+        """
+        Test '_verbose' doesn't print a given message if Sync isn't in
+        verbose mode.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '', '', verbose=False)
 
-    """
-    def fin():
-        device_destination = os.path.join(mtp[1], DEVICE_DESTINATION_TEST_DIR)
-        gvfs.rm(device_destination)
+        sync._verbose('Hello World!')
+        self.assertEqual('', mock_stdout.getvalue().strip())
 
-        if os.path.exists(device_destination):
-            raise OSError('Failed to remove device directory "{d}"'.
-                          format(d=device_destination))
+    #
+    # 'gvfs_wrapper()'
+    @patch('pysyncdroid.gvfs.mkdir')
+    def test_gvfs_wrapper_common_exception(self, mock_mkdir):
+        """
+        Test 'gvfs_wrapper' isn't ignoring common exceptions.
+        """
+        mock_mkdir.side_effect = ValueError
+        sync = Sync(FAKE_MTP_DETAILS, '', '')
 
-    request.addfinalizer(fin)
+        with self.assertRaises(ValueError):
+            sync.gvfs_wrapper(mock_mkdir, '/tmp/dir')
 
+    @patch('pysyncdroid.gvfs.mkdir')
+    def test_gvfs_wrapper_bash_exception_any(self, mock_mkdir):
+        """
+        Test 'gvfs_wrapper' doesn't handle any BashException.
+        """
+        mock_mkdir.side_effect = BashException
+        sync = Sync(FAKE_MTP_DETAILS, '', '')
 
-@pytest.fixture
-def mtp():
-    """
-    Fixture - get MTP path to the testing device
+        with self.assertRaises(BashException):
+            sync.gvfs_wrapper(mock_mkdir, '/tmp/dir')
 
-    :returns str
+    @patch('pysyncdroid.gvfs.mkdir')
+    @patch('pysyncdroid.gvfs.mount')
+    def test_gvfs_wrapper_bash_exception_exact(self, mock_mount, mock_mkdir):
+        """
+        Test 'gvfs_wrapper' handles only a specific BashException.
+        """
+        mock_mkdir.side_effect = [
+            BashException('Connection reset by peer'),
+            None,
+        ]
+        sync = Sync(FAKE_MTP_DETAILS, '', '')
+        sync.gvfs_wrapper(mock_mkdir, '/tmp/dir')
 
-    """
-    usb_bus, device = get_connection_details(vendor=DEVICE_VENDOR,
-                                             model=DEVICE_MODEL)
-    mtp_details = get_mtp_details(usb_bus, device)
+        self.assertEqual(mock_mkdir.call_count, 2)
+        mock_mount.assert_called_once_with(sync.mtp_url)
 
-    return mtp_details
+    #
+    # 'set_source_abs()'
+    @patch('pysyncdroid.sync.os.path.isdir')
+    @patch('pysyncdroid.sync.os.path.exists')
+    def test_set_source_abs_absolute_path(
+        self, mock_path_exists, mock_path_isdir
+    ):
+        """
+        Test 'set_source_abs' recongizes an absolute path.
+        """
+        mock_path_exists.return_value = True
+        mock_path_isdir.return_value = True
 
-
-@pytest.fixture
-def cd_home():
-    """
-    Fixture - cd to '~'
-    """
-    os.chdir(COMPUTER_HOME)
-
-
-@pytest.fixture
-def cd_back(request):
-    """
-    Fixture - cd to '-', i.e. back to previous directory
-    """
-    def fin():
-        os.chdir(CURRENT_DIRECTORY)
-
-    request.addfinalizer(fin)
-
-
-# device source tests ---------------------------------------------------------
-# -----------------------------------------------------------------------------
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_source_exists_on_device(mtp):
-    """
-    Test if Sync is able to initialize; i.e. source exists and is a directory
-    """
-    sync = Sync(mtp, DEVICE_SOURCE, '')
-    sync.set_source_abs()
-
-    assert sync.source == os.path.join(mtp[1], DEVICE_SOURCE)
-
-
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_source_not_exists_on_device(mtp):
-    """
-    Test if Sync is not able to initialize; i.e. source doesn't exists
-    """
-    with pytest.raises(OSError) as exc:
-        sync = Sync(mtp, DEVICE_SOURCE_FAKE, '')
+        sync = Sync(FAKE_MTP_DETAILS, '/an-absolute-path', '')
         sync.set_source_abs()
 
-    assert NOT_EXISTS in str(exc.value)
+        self.assertEqual(sync.source, '/an-absolute-path')
 
+    @patch('pysyncdroid.sync.os.path.isdir')
+    @patch('pysyncdroid.sync.os.path.exists')
+    def test_set_source_abs_computer_relative_path(
+        self, mock_path_exists, mock_path_isdir
+    ):
+        """
+        Test 'set_source_abs' creates an absolute path from a relative path
+        when the path exists on computer.
+        """
+        mock_path_exists.return_value = True
+        mock_path_isdir.return_value = True
 
-# computer source tests -------------------------------------------------------
-# -----------------------------------------------------------------------------
-def test_source_exists_on_computer():
-    """
-    Test if Sync is able to initialize; i.e. source exists and is a directory
-    """
-    sync = Sync(('', ''), COMPUTER_SOURCE, '')
-    sync.set_source_abs()
-
-    assert sync.source == COMPUTER_SOURCE
-
-
-def test_source_exists_on_computer_relative(cd_home, cd_back):
-    """
-    Test if Sync is able to initialize; i.e. source exists and is a directory
-    even if is specified as a relative path which is OK in this context
-    """
-    music = 'Music'
-
-    sync = Sync(('', ''), music, '')
-    sync.set_source_abs()
-
-    assert sync.source == os.path.join(COMPUTER_HOME, music)
-
-
-def test_source_exists_on_computer_relative2(cd_home, cd_back):
-    """
-    Test if Sync is able to initialize; i.e. source exists and is a directory
-    even if is specified as a relative path
-    """
-    parent = '..'
-
-    sync = Sync(('', ''), parent, '')
-    sync.set_source_abs()
-
-    assert sync.source == os.path.dirname(COMPUTER_HOME)
-
-
-def test_source_exists_on_computer_relative3(cd_home, cd_back):
-    """
-    Test if Sync is able to initialize; i.e. source exists and is a directory
-    even if is specified as a relative path
-    """
-    parent = os.sep
-
-    sync = Sync(('', ''), parent, '')
-    sync.set_source_abs()
-
-    assert sync.source == os.sep
-
-
-def test_source_not_exists_on_computer_relative():
-    """
-    Test if Sync is not able to initialize; i.e. source doesn't exists as it
-    is specified as a relative path which is wrong in this context
-    """
-    with pytest.raises(OSError) as exc:
-        sync = Sync(('', ''), 'Music/', '')
+        sync = Sync(FAKE_MTP_DETAILS, 'a-relative-path/', '')
         sync.set_source_abs()
 
-    assert NOT_EXISTS in str(exc.value)
+        expected_abs_path = os.path.join(os.getcwd(), 'a-relative-path')
+        self.assertEqual(sync.source, expected_abs_path)
 
+    @patch('pysyncdroid.sync.os.path.isdir')
+    @patch('pysyncdroid.sync.os.path.exists')
+    def test_set_source_abs_device_relative_path(
+        self, mock_path_exists, mock_path_isdir
+    ):
+        """
+        Test 'set_source_abs' creates an absolute path from a relative path
+        when the path exists on device.
+        """
+        mock_path_exists.side_effect = [False, True, True]
+        mock_path_isdir.return_value = True
 
-def test_source_expand():
-    """
-    Test if Sync is able to initialize even if given an expandable path
-    """
-    sync = Sync(('', ''), '~/Music', '')
-    sync.set_source_abs()
-
-    assert sync.source == os.path.join(COMPUTER_HOME, 'Music')
-
-
-def test_source_is_a_file_on_computer():
-    """
-    Test if Sync is not able to initialize; i.e. source is a not a directory
-    """
-    with pytest.raises(OSError) as exc:
-        sync = Sync(('', ''), COMPUTER_SOURCE_FILE, '')
+        sync = Sync(FAKE_MTP_DETAILS, 'Card/Music', '')
         sync.set_source_abs()
 
-    assert NOT_DIRECTORY in str(exc.value)
+        expected_abs_path = os.path.join(sync.mtp_gvfs_path, 'Card/Music')
+        self.assertEqual(sync.source, expected_abs_path)
 
+    @patch('pysyncdroid.sync.os.path.exists')
+    def test_set_source_abs_nonexistent(self, mock_path_exists):
+        """
+        Test 'set_source_abs' raises an OSError when source doesn't exist on
+        the computer or on the device.
+        """
+        mock_path_exists.return_value = False
 
-# destination tests -----------------------------------------------------------
-# -----------------------------------------------------------------------------
-def test_destination_should_be_device():
-    """
-    Test if Sync sets device as destination if computer is the source
-    """
-    sync = Sync(DEVICE_MTP_FAKE, COMPUTER_SOURCE, '')
-    sync.set_source_abs()
-    sync.set_destination_abs()
+        with self.assertRaises(OSError) as exc:
+            sync = Sync(FAKE_MTP_DETAILS, 'non-exiting-path', '')
+            sync.set_source_abs()
 
-    assert sync.destination == os.path.join(DEVICE_MTP_FAKE[1], '')
+        # Must be called twice - for computer and device.
+        self.assertEqual(mock_path_exists.call_count, 2)
 
+        self.assertEqual(
+            str(exc.exception),
+            '"non-exiting-path" does not exist on computer or on device.'
+        )
 
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_destination_should_be_computer(mtp):
-    """
-    Test if Sync sets computer as destination if device is the source
-    """
-    sync = Sync(mtp, DEVICE_SOURCE, 'computer-desc/')
-    sync.set_source_abs()
-    sync.set_destination_abs()
+    @patch('pysyncdroid.sync.os.path.isdir')
+    @patch('pysyncdroid.sync.os.path.exists')
+    def test_set_source_abs_not_directory(
+        self, mock_path_exists, mock_path_isdir
+    ):
+        """
+        Test 'set_source_abs' raises an OSError when source exists but is not a
+        directory.
+        """
+        mock_path_exists.return_value = True
+        mock_path_isdir.return_value = False
 
-    assert sync.destination == os.path.join(CURRENT_DIRECTORY, 'computer-desc')
+        with self.assertRaises(OSError) as exc:
+            sync = Sync(FAKE_MTP_DETAILS, 'not-a-directory', '')
+            sync.set_source_abs()
 
-
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_destination_should_be_computer_relative(mtp):
-    """
-    Test if Sync sets computer as destination if device is the source and the
-    destination is a relative path
-    """
-    parent = '../..'
-
-    sync = Sync(mtp, DEVICE_SOURCE, parent)
-    sync.set_source_abs()
-    sync.set_destination_abs()
-
-    assert sync.destination == COMPUTER_HOME
-
-
-# paths preparation tests -----------------------------------------------------
-# -----------------------------------------------------------------------------
-@patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
-def test_get_sync_data(mock_gvfs_wrapper, tmpdir, tmpfiles):
-    """
-    Test if Sync.get_sync_data() returns an expected list of paths
-    """
-    mock_gvfs_wrapper.return_value = ''
-
-    sync = Sync(DEVICE_MTP_FAKE, tmpdir, DEVICE_DESTINATION)
-    sync.set_source_abs()
-    sync.set_destination_abs()
-
-    for to_sync in sync.get_sync_data():
-        for key in ('src_dir_abs', 'src_dir_fls', 'dst_dir_abs', 'dst_dir_fls'):
-            assert key in to_sync
-
-        for src in to_sync['src_dir_fls']:
-            basename = os.path.basename(src)
-            dst = src.replace(to_sync['src_dir_abs'], to_sync['dst_dir_abs'])
-
-            assert src.endswith(basename)
-            assert dst.endswith(basename)
-
-            assert tmpdir in src
-            assert DEVICE_MTP_FAKE[1] in dst
-            assert DEVICE_DESTINATION in dst
-
-
-@pytest.mark.parametrize("file_type", ['txt', 'TXT'])
-@patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
-def test_get_sync_data_ignore_files(mock_gvfs_wrapper, tmpdir, tmpfiles, file_type):
-    """
-    Test if Sync.get_sync_data() ignores given file types
-    """
-    mock_gvfs_wrapper.return_value = ''
-
-    sync = Sync(DEVICE_MTP_FAKE, tmpdir, DEVICE_DESTINATION,
-                ignore_file_types=[file_type])
-    sync.set_source_abs()
-    sync.set_destination_abs()
-
-    for to_sync in sync.get_sync_data():
-        assert not to_sync['src_dir_fls']
-
-
-# synchronization tests -------------------------------------------------------
-# -----------------------------------------------------------------------------
-@pytest.mark.first
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_empty_dir(mtp, tmpdir):
-    """
-    Test Sync.sync() doesn't sync an empty directory
-    """
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR)
-    sync.set_source_abs()
-    sync.set_destination_abs()
-    sync.sync()
-
-    with pytest.raises(OSError):
-        os.listdir(sync.destination)
-
-
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_to_device(mtp, tmpdir, tmpfiles_names, tmpdir_device_remove):
-    """
-    Test if Sync.sync() really sync files from computer to device
-    """
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR)
-    sync.set_source_abs()
-    sync.set_destination_abs()
-    sync.sync()
-
-    synced_files = os.listdir(sync.destination)
-    assert synced_files
-
-    for synced_file in synced_files:
-        synced_file = os.path.basename(synced_file)
-
-        assert synced_file in tmpfiles_names
-
-
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_to_computer(mtp, tmpdir, tmpfiles, tmpfiles_names, tmpdir_device_remove):  # noqa
-    """
-    Test if Sync.sync() really sync files from device to computer
-    """
-    #
-    # first move tmpfiles to the device
-    device_source = os.path.join(mtp[1], DEVICE_DESTINATION_TEST_DIR)
-
-    if not os.path.exists(device_source):
-        gvfs.mkdir(device_source)
-
-    for tmpfile in tmpfiles:
-        gvfs.mv(tmpfile, os.path.join(mtp[1], device_source))
-
-    moved_files = os.listdir(device_source)
-    assert moved_files
-
-    for moved_file in moved_files:
-        moved_file = os.path.basename(moved_file)
-
-        assert moved_file in tmpfiles_names
+        expected_abs_path = os.path.join(os.getcwd(), 'not-a-directory')
+        err_msg = '"{}" is not a directory.'.format(expected_abs_path)
+        self.assertEqual(str(exc.exception), err_msg)
 
     #
-    # then sync them back to computer
-    sync = Sync(mtp, device_source, tmpdir)
-    sync.set_source_abs()
-    sync.set_destination_abs()
-    sync.sync()
+    # 'set_destination_abs()'
+    def test_set_destination_abs_absolute_path(self):
+        """
+        Test 'set_destination_abs' recongizes an absolute path.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '', '/an-absolute-path')
+        sync.set_destination_abs()
 
-    synced_files = os.listdir(sync.destination)
-    assert synced_files
+        self.assertEqual(sync.destination, '/an-absolute-path')
 
-    for synced_file in synced_files:
-        synced_file = os.path.basename(synced_file)
+    def test_set_destination_abs_computer_relative_path(self):
+        """
+        Test 'set_destination_abs' creates an absolute path from a relative path
+        when the destination is on computer.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '/test-mtp:host-path', 'a-relative-path/')
+        sync.set_destination_abs()
 
-        assert synced_file in tmpfiles_names
+        expected_abs_path = os.path.join(os.getcwd(), 'a-relative-path')
+        self.assertEqual(sync.destination, expected_abs_path)
 
+    def test_set_destination_abs_device_relative_path(self):
+        """
+        Test 'set_destination_abs' creates an absolute path from a relative path
+        when the destination is on device.
+        """
 
-@pytest.mark.parametrize("unmatched_action", [REMOVE, SYNCHRONIZE])
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_to_device_unmatched(mtp, tmpdir, tmpfiles_names,
-                                  tmpdir_device_remove, unmatched_action):
-    """
-    :unmatched_action == SYNCHRONIZE
+        sync = Sync(FAKE_MTP_DETAILS, '', 'Card/Music')
+        sync.set_destination_abs()
 
-    Test if Sync.sync() really sync files from computer to device and sync
-    back to computer file(s) that are only on the device.
-
-
-    :unmatched_action == REMOVE
-
-    Test if Sync.sync() really sync files from computer to device and remove
-    files that are only on the device.
-    """
-    #
-    # create parent directory and copy a new file to the device
-    # destination directory; this copied file will be the unmatched file, i.e.
-    # a file that is present only in the destination directory
-    unmatched = 'test.test'
-
-    dst_pth = os.path.join(mtp[1], DEVICE_DESTINATION_TEST_DIR)
-    gvfs.mkdir(dst_pth)
-
-    dst_file = os.path.join(dst_pth, unmatched)
-    gvfs.cp(src=COMPUTER_SOURCE_FILE, dst=dst_file)
-
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, unmatched=unmatched_action)  # noqa
-    sync.set_source_abs()
-    sync.set_destination_abs()
-    sync.sync()
+        expected_abs_path = os.path.join(sync.mtp_gvfs_path, 'Card/Music')
+        self.assertEqual(sync.destination, expected_abs_path)
 
     #
-    # exclude the unmatched file from synchronized files as it was already in
-    # the destination directory
-    synced_files = [syncf for syncf in os.listdir(sync.destination)
-                    if syncf != unmatched]
-    assert synced_files
+    # 'set_destination_subdir_abs()'
+    def test_set_destination_subdir_absh(self):
+        """
+        Test 'set_destination_subdir_abs' creates an absolute path for a
+        destination subdir.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '~/Music', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
 
-    for synced_file in synced_files:
-        synced_file = os.path.basename(synced_file)
+        src_subdir_abs = os.path.join(sync.source, 'testdir')
+        dst_subdir_abs = sync.set_destination_subdir_abs(src_subdir_abs)
 
-        assert synced_file in tmpfiles_names
+        expected_abs_path = os.path.join(sync.destination, 'testdir')
+        self.assertEqual(dst_subdir_abs, expected_abs_path)
 
     #
-    # test if unmatched_action works as expected
-    if unmatched_action == SYNCHRONIZE:
-        # unmatched file should be synchronized to the source directory
-        assert unmatched in os.listdir(sync.source)
-    elif unmatched_action == REMOVE:
-        # unmatched file should be removed from the destination directory
-        assert unmatched not in os.listdir(sync.destination)
+    # 'sync_data_template()'
+    def test_sync_data_template(self):
+        """
+        Test 'sync_data_template' creates a sync data dict with expected keys.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '~/Music', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+
+        src_subdir_abs = os.path.join(sync.source, 'testdir')
+        dst_subdir_abs = os.path.join(sync.destination, 'testdir')
+        sync_data = sync.sync_data_template(src_subdir_abs, dst_subdir_abs)
+
+        self.assertIn('src_dir_abs', sync_data)
+        self.assertIn('src_dir_fls', sync_data)
+        self.assertIn('dst_dir_abs', sync_data)
+        self.assertIn('dst_dir_fls', sync_data)
+
+    #
+    # 'handle_ignored_file_type()'
+    def test_handle_ignored_file_type(self):
+        """
+        Test 'handle_ignored_file_type' raises IgnoredTypeException exception
+        only for files with specified extensions.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '', '', ignore_file_types=['jpg'])
+        sync.set_source_abs()
+        sync.set_destination_abs()
+
+        # this one is fine
+        sync.handle_ignored_file_type('/tmp/test.png')
+
+        # this one should be ignored
+        with self.assertRaises(IgnoredTypeException):
+            sync.handle_ignored_file_type('/tmp/test.jpg')
+
+    #
+    # 'get_source_subdir_data()'
+    @patch.object(pysyncdroid.sync.Sync, 'handle_ignored_file_type')
+    def test_get_source_subdir_data(self, mock_handle_ignored_file_type):
+        """
+        Test 'get_source_subdir_data' populates 'src_dir_fls' with collected
+        data.
+        """
+        mock_handle_ignored_file_type.side_effect = [
+            None, IgnoredTypeException, None
+        ]
+        src_subdir_files = ['song.mp3', 'cover.jpg', 'demo.mp3']
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync_data = self._create_empty_sync_data(sync)
+        sync.get_source_subdir_data(src_subdir_files, sync_data)
+
+        self.assertEqual(sync_data['src_dir_fls'], [
+            '/tmp/testdir/song.mp3', '/tmp/testdir/demo.mp3'
+        ])
+
+    #
+    # 'get_destination_subdir_data()'
+    @patch('pysyncdroid.sync.os.path.exists')
+    @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+    def test_get_destination_subdir_data_doesnt_exist(
+        self, mock_gvfs_wrapper, mock_path_exists
+    ):
+        """
+        Test 'get_destination_subdir_data' creates destination direcotry if it
+        doesn't exist.
+        """
+        mock_path_exists.side_effect = (True, False)
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync_data = self._create_empty_sync_data(sync)
+        sync.get_destination_subdir_data(sync_data)
+
+        mock_gvfs_wrapper.assert_called_once_with(
+            mkdir,
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+        )
+        self.assertFalse(sync_data['dst_dir_fls'])
+
+    @patch('pysyncdroid.sync.os.path.exists')
+    @patch('pysyncdroid.sync.os.listdir')
+    @patch.object(pysyncdroid.sync.Sync, 'handle_ignored_file_type')
+    def test_get_destination_subdir_data_(
+        self, mock_handle_ignored_file_type, mock_listdir, mock_path_exists
+    ):
+        """
+        Test 'get_destination_subdir_data' populates 'dst_dir_fls' with
+        collected data.
+        """
+        mock_path_exists.return_value = True
+        mock_listdir.return_value = ['song.mp3', 'cover.jpg', 'demo.mp3']
+        mock_handle_ignored_file_type.side_effect = [
+            None, IgnoredTypeException, None
+        ]
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync_data = self._create_empty_sync_data(sync)
+        sync.get_destination_subdir_data(sync_data)
+
+        self.assertEqual(sync_data['dst_dir_fls'], [
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3'  # noqa
+        ])
+
+    #
+    # 'get_sync_data()'
+    @patch('pysyncdroid.sync.os.walk')
+    @patch.object(pysyncdroid.sync.Sync, 'set_destination_subdir_abs')
+    @patch.object(pysyncdroid.sync.Sync, 'get_destination_subdir_data')
+    def test_get_sync_data(
+        self, mock_get_destination_subdir_data,
+        mock_set_destination_subdir_abs, mock_oswalk
+    ):
+        """
+        Test 'get_sync_data' gets list of valid sync_data dictionaries.
+        """
+        mock_oswalk.return_value = (
+            ('/tmp/testdir', ['testsubdir'], ['song.mp3', 'demo.mp3']),
+            ('/tmp/testdir/testsubdir', ['testsubdir2'], []),
+            ('/tmp/testdir/testsubdir/testsubdir2', [], ['song2.mp3']),
+        )
+        mock_set_destination_subdir_abs.side_effect = (
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir',  # noqa
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/testsubdir2'  # noqa
+        )
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync_data_set = sync.get_sync_data()
+
+        self.assertTrue(mock_set_destination_subdir_abs.call_count, 2)
+        self.assertTrue(mock_get_destination_subdir_data.call_count, 2)
+
+        expected_sync_data_set = [
+            {
+                'src_dir_abs': '/tmp/testdir',
+                'src_dir_fls': [
+                    '/tmp/testdir/song.mp3',
+                    '/tmp/testdir/demo.mp3'
+                ],
+                'dst_dir_fls': [],
+                'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir'  # noqa
+            },
+            {
+                'src_dir_abs': '/tmp/testdir/testsubdir/testsubdir2',
+                'src_dir_fls': [
+                    '/tmp/testdir/testsubdir/testsubdir2/song2.mp3'
+                ],
+                'dst_dir_fls': [],
+                'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/testsubdir2'  # noqa
+            }
+        ]
+
+        self.assertIsInstance(sync_data_set, list)
+        self.assertEqual(sync_data_set, expected_sync_data_set)
+
+    #
+    # 'copy_file()'
+    @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+    def test_copy_file(self, mock_gfvs_wrapper):
+        """
+        Test 'copy_file' copies a file from source to destination.
+        """
+        src_file = '/tmp/song.mp3'
+        dst_file = 'Card/Musicsong.mp3'
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.copy_file(src_file, dst_file)
+
+        mock_gfvs_wrapper.assert_called_once_with(cp, src_file, dst_file)
+
+    #
+    # 'do_sync()'
+    @patch.object(pysyncdroid.sync.Sync, 'copy_file')
+    def test_do_sync(self, mock_copy_file):
+        """
+        Test 'do_sync' copies source files to their destination and updates
+        destination files list.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.do_sync(FAKE_SYNC_DATA)
+
+        self.assertEqual(
+            FAKE_SYNC_DATA['dst_dir_fls'],
+            ['/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/oldsong.mp3']  # noqa
+        )
+
+        mock_copy_file.assert_called_once_with(
+            '/tmp/testdir/song.mp3',
+            '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+        )
+
+    @patch.object(pysyncdroid.sync.Sync, 'copy_file')
+    def test_do_sync_overwrite(self, mock_copy_file):
+        """
+        Test 'do_sync' is able to overwrite existing destination files.
+        """
+        sync = Sync(
+            FAKE_MTP_DETAILS, '/tmp', 'Card/Music', overwrite_existing=True
+        )
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.do_sync(FAKE_SYNC_DATA)
+
+        calls = (
+            call(
+                '/tmp/testdir/song.mp3',
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+                ),
+            call(
+                '/tmp/testdir/demo.mp3',
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/demo.mp3',  # noqa
+                ),
+        )
+        mock_copy_file.assert_has_calls(calls)
+
+    #
+    # 'handle_destination_dir_data()'
+    @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+    def test_handle_destination_dir_data_no_files(self, mock_gfvs_wrapper):
+        """
+        Test 'handle_destination_dir_data' ends early when there are no data
+        to process.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=REMOVE)
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.handle_destination_dir_data({'dst_dir_fls': []})
+
+        mock_gfvs_wrapper.assert_not_called()
+
+    @patch.object(pysyncdroid.sync.Sync, 'gvfs_wrapper')
+    def test_handle_destination_dir_data_remove(self, mock_gfvs_wrapper):
+        """
+        Test 'handle_destination_dir_data' removes unmatched destination data.
+        """
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=REMOVE)
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.handle_destination_dir_data({
+            'dst_dir_fls': [
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+            ]
+        })
+
+        mock_gfvs_wrapper.assert_called_once_with(
+            rm, '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+        )
+
+    @patch.object(pysyncdroid.sync.Sync, 'copy_file')
+    def test_handle_destination_dir_data_sync(self, mock_copy_file):
+        """
+        Test 'handle_destination_dir_data' synchronizes unmatched destination
+        data to source.
+        """
+        sync = Sync(
+            FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=SYNCHRONIZE
+        )
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.handle_destination_dir_data({
+            'src_dir_abs': '/tmp/testdir',
+            'dst_dir_fls': [
+                '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3',  # noqa
+            ],
+            'dst_dir_abs': '/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir',  # noqa
+        })
+
+        mock_copy_file.assert_called_once_with(
+            dst_file='/tmp/testdir/song.mp3',
+            src_file='/run/user/<user>/gvfs/mtp:host=%5Busb%3A002%2C003%5D/Card/Music/testdir/song.mp3'  # noqa
+        )
+
+    #
+    # 'sync()'
+    @patch.object(pysyncdroid.sync.Sync, 'do_sync')
+    @patch.object(pysyncdroid.sync.Sync, 'get_sync_data')
+    def test_sync_no_data(self, mock_get_sync_data, mock_do_sync):
+        """
+        Test 'sync' ends early if there are no files to synchronize.
+        """
+        mock_get_sync_data.return_value = [{'src_dir_fls': []}]
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.sync()
+
+        mock_do_sync.assert_not_called()
+
+    @patch.object(pysyncdroid.sync.Sync, 'do_sync')
+    @patch.object(pysyncdroid.sync.Sync, 'get_sync_data')
+    @patch.object(pysyncdroid.sync.Sync, 'handle_destination_dir_data')
+    def test_sync_ignore_unmatched(
+        self, mock_handle_destination_dir_data, mock_get_sync_data, mock_do_sync
+    ):
+        """
+        Test 'sync' ignores unmatched files.
+        """
+        mock_get_sync_data.return_value = [FAKE_SYNC_DATA]
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music')
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.sync()
+
+        mock_do_sync.assert_called_once_with(FAKE_SYNC_DATA)
+        mock_handle_destination_dir_data.assert_not_called()
+
+    @patch.object(pysyncdroid.sync.Sync, 'do_sync')
+    @patch.object(pysyncdroid.sync.Sync, 'get_sync_data')
+    @patch.object(pysyncdroid.sync.Sync, 'handle_destination_dir_data')
+    def test_sync_handle_unmatched(
+        self, mock_handle_destination_dir_data, mock_get_sync_data, mock_do_sync
+    ):
+        """
+        Test 'sync' handles (removes, in thos case) unmatched files.
+        """
+        mock_get_sync_data.return_value = [FAKE_SYNC_DATA]
+
+        sync = Sync(FAKE_MTP_DETAILS, '/tmp', 'Card/Music', unmatched=REMOVE)
+        sync.set_source_abs()
+        sync.set_destination_abs()
+        sync.sync()
+
+        mock_do_sync.assert_called_once_with(FAKE_SYNC_DATA)
+        mock_handle_destination_dir_data.assert_called_once_with(FAKE_SYNC_DATA)
 
 
-@pytest.mark.parametrize("overwrite", [True, False])
-@pytest.mark.skipif(device_not_connected(), reason=DEVICE_NOT_CONNECTED)
-def test_sync_to_device_overwrite(mtp, tmpdir, tmpfiles, tmpdir_device_remove,
-                                  overwrite):
-    """
-    :overwrite == True
-
-    Test if Sync.sync() overwrites existing files
-
-
-    :overwrite == False
-
-    Test if Sync.sync() does not overwrite existing files
-    """
-    def _get_modification_times():
-        sync_dict = {}
-
-        for synced_file in os.listdir(sync.destination):
-            abs_pth = os.path.join(sync.destination, synced_file)
-            sync_dict[synced_file] = time.ctime(os.path.getmtime(abs_pth))
-
-            return sync_dict
-
-    sync = Sync(mtp, tmpdir, DEVICE_DESTINATION_TEST_DIR, overwrite_existing=overwrite)  # noqa
-    sync.set_source_abs()
-    sync.set_destination_abs()
-
-    sync.sync()
-    first_sync = _get_modification_times()
-
-    time.sleep(2)
-
-    sync.sync()
-    second_sync = _get_modification_times()
-
-    for synced_file in first_sync:
-        if overwrite:
-            assert first_sync[synced_file] < second_sync[synced_file]
-        else:
-            assert first_sync[synced_file] == second_sync[synced_file]
+if __name__ == '__main__':
+    unittest.main()

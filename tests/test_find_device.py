@@ -5,7 +5,11 @@ from mock import patch
 import unittest
 
 from pysyncdroid.exceptions import DeviceException
-from pysyncdroid.find_device import get_connection_details, get_mtp_details
+from pysyncdroid.find_device import (
+    get_connection_details,
+    get_mtp_details,
+    lsusb,
+)
 
 
 mock_lsub_parts = [
@@ -16,6 +20,20 @@ mock_lsub_parts = [
     'Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub',
 ]
 MOCK_LSUB_RESULT = '\n'.join(mock_lsub_parts)
+
+
+class TestLsusb(unittest.TestCase):
+    def setUp(self):
+        self.patcher = patch('pysyncdroid.find_device.run_bash_cmd')
+        self.mock_run_bash_cmd = self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def test_lsusb(self):
+        lsusb()
+
+        self.mock_run_bash_cmd.assert_called_with(['lsusb'])
 
 
 class TestFindDevice(unittest.TestCase):

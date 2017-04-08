@@ -10,7 +10,14 @@ import os
 
 from pysyncdroid import exceptions
 from pysyncdroid import gvfs
-from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE, run_bash_cmd
+from pysyncdroid.utils import run_bash_cmd
+
+
+#: constants
+# unmatched files actions
+IGNORE = 'ignore'
+REMOVE = 'remove'
+SYNCHRONIZE = 'synchronize'
 
 
 def readlink(path):
