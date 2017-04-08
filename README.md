@@ -78,18 +78,8 @@ dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -f /home/dm/Desktop/src2de
 ```
 
 ### Device not found error
-If you keep getting the following error message
-
-`Device "<vendor> <model>" not found`
-
-make sure the device is connected to the computer and you can access it via file manager.
-Run `lsusb` and check the output for desired `vendor` or `model` names. For example, I get the following string for my Samsung Galaxy SIII
-
-`Bus 001 Device 011: ID 04e8:6860 Samsung Electronics Co., Ltd GT-I9100 Phone [Galaxy S II], GT-I9300 Phone [Galaxy S III], GT-P7500 [Galaxy Tab 10.1]`
-
-and therefore I use `PySyncDroid` as
-
-`pysyncdroid -V samsung -M gt-i9300`
+If you keep getting the following error message `Device "<vendor> <model>" not found` make sure the device is connected to the computer and you can access it via file manager.
+Run `lsusb` and check the output for desired `vendor` or `model` names. For example, I get the following string for my Samsung Galaxy SIII `Bus 001 Device 011: ID 04e8:6860 Samsung Electronics Co., Ltd GT-I9100 Phone [Galaxy S II], GT-I9300 Phone [Galaxy S III], GT-P7500 [Galaxy Tab 10.1]` and therefore I use `PySyncDroid` as `pysyncdroid -V samsung -M gt-i9300`.
 
 ## Limitations & known issues
 * `source` and `destination` must be a path to a **directory**
