@@ -8,8 +8,7 @@
 import argparse
 
 from pysyncdroid import find_device
-from pysyncdroid.sync import Sync
-from pysyncdroid.utils import IGNORE, REMOVE, SYNCHRONIZE
+from pysyncdroid.sync import Sync, IGNORE, REMOVE, SYNCHRONIZE
 
 
 parser = argparse.ArgumentParser()
