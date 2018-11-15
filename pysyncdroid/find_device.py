@@ -11,21 +11,21 @@ from pysyncdroid.utils import run_bash_cmd
 # pattern to locate MTP connected devices via URL
 # b - USB bus ID
 # d - device ID
-MTP_URL_PATTERN = 'mtp://[usb:{b},{d}]/'
+MTP_URL_PATTERN = "mtp://[usb:{b},{d}]/"
 
 
 # pattern to locate MTP connected devices via gvfs
 # u - user ID
 # b - USB bus ID
 # d - device ID
-MTP_GVFS_PATH_PATTERN = '/run/user/{u}/gvfs/mtp:host=%5Busb%3A{b}%2C{d}%5D'
+MTP_GVFS_PATH_PATTERN = "/run/user/{u}/gvfs/mtp:host=%5Busb%3A{b}%2C{d}%5D"
 
 
 def lsusb():
     """
     A wrapper for the Linux `lsusb` commmand.
     """
-    return run_bash_cmd(['lsusb'])
+    return run_bash_cmd(["lsusb"])
 
 
 def get_connection_details(vendor, model):
@@ -46,7 +46,7 @@ def get_connection_details(vendor, model):
     model_pattern = re.compile(model, re.IGNORECASE)
 
     # TODO: this assumes there is only one `vendor:model` device connected
-    for device_info in lsusb().split('\n'):
+    for device_info in lsusb().split("\n"):
         if vendor_pattern.search(device_info) is None:
             continue
         else:
@@ -71,10 +71,11 @@ def get_connection_details(vendor, model):
     ext_base = '"{v}" devices were found'.format(v=vendor)
 
     if vendor_devices:
-        exc_msg += ('Following {b}:\n{d}'
-                    .format(b=ext_base, d='\n'.join(vendor_devices)))
+        exc_msg += "Following {b}:\n{d}".format(
+            b=ext_base, d="\n".join(vendor_devices)
+        )
     else:
-        exc_msg += 'No {b}.'.format(b=ext_base)
+        exc_msg += "No {b}.".format(b=ext_base)
 
     raise DeviceException(exc_msg)
 
@@ -92,8 +93,8 @@ def get_mtp_details(usb_bus_id, device_id):
 
     """
     mtp_url = MTP_URL_PATTERN.format(b=usb_bus_id, d=device_id)
-    mtp_gvfs_path = MTP_GVFS_PATH_PATTERN.format(u=os.getuid(),
-                                                 b=usb_bus_id,
-                                                 d=device_id)
+    mtp_gvfs_path = MTP_GVFS_PATH_PATTERN.format(
+        u=os.getuid(), b=usb_bus_id, d=device_id
+    )
 
     return mtp_url, mtp_gvfs_path

@@ -1,8 +1,8 @@
 """Tests for utils functionality."""
 
 
-from mock import Mock, patch
 import unittest
+from unittest.mock import Mock, patch
 
 from pysyncdroid.exceptions import BashException
 from pysyncdroid.utils import run_bash_cmd
@@ -10,7 +10,7 @@ from pysyncdroid.utils import run_bash_cmd
 
 class TestRunBashCmd(unittest.TestCase):
     def setUp(self):
-        self.patcher = patch('pysyncdroid.utils.subprocess.Popen')
+        self.patcher = patch("pysyncdroid.utils.subprocess.Popen")
         self.mock_popen = self.patcher.start()
 
     def tearDown(self):
@@ -27,7 +27,7 @@ class TestRunBashCmd(unittest.TestCase):
 
         """
         process_mock = Mock()
-        attrs = {'communicate.return_value': return_value}
+        attrs = {"communicate.return_value": return_value}
         process_mock.configure_mock(**attrs)
 
         return process_mock
@@ -36,10 +36,10 @@ class TestRunBashCmd(unittest.TestCase):
         """
         Test 'run_bash_cmd' returns an expected output for a valid command.
         """
-        self.mock_popen.return_value = self._mock_communicate(('a', ''))
+        self.mock_popen.return_value = self._mock_communicate(("a", ""))
 
-        out = run_bash_cmd(['echo', 'a'])
-        self.assertEqual(out, 'a')
+        out = run_bash_cmd(["echo", "a"])
+        self.assertEqual(out, "a")
 
     def test_run_bash_cmd_oserror(self):
         """
@@ -48,7 +48,7 @@ class TestRunBashCmd(unittest.TestCase):
         """
         self.mock_popen.side_effect = OSError
         with self.assertRaises(OSError) as exc:
-            run_bash_cmd(['no_command'])
+            run_bash_cmd(["no_command"])
 
         err_msg = 'Error while trying to execute command "no_command": None'
         self.assertEqual(str(exc.exception), err_msg)
@@ -59,14 +59,10 @@ class TestRunBashCmd(unittest.TestCase):
         command in a non-standard way (with missing argument in this case).
         """
         lsub_msg = 'lsusb: option requires an argument -- "d"'
-        self.mock_popen.return_value = self._mock_communicate(('', lsub_msg))
+        self.mock_popen.return_value = self._mock_communicate(("", lsub_msg))
 
         with self.assertRaises(BashException) as exc:
-            run_bash_cmd(['lsusb', '-d'])
+            run_bash_cmd(["lsusb", "-d"])
 
         err_msg = 'Command "lsusb -d" failed: {}'.format(lsub_msg)
         self.assertEqual(str(exc.exception), err_msg)
-
-
-if __name__ == '__main__':
-    unittest.main()

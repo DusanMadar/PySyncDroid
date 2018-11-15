@@ -1,5 +1,5 @@
 # PySyncDroid
-PySyncDroid is a Python 2.7 powered CLI tool providing a simple way to synchronize an Android device connected to a Linux PC via MTP over USB. 
+PySyncDroid is a Python 3 powered CLI tool providing a simple way to synchronize an Android device connected to a Linux PC via MTP over USB.
 
 No special setup is required for the Android device.
 
@@ -13,13 +13,13 @@ Make sure you have `lsusb` installed on your computer as it is used to discover 
 Here is a list of gvfs related packages I have installed on my system (Ubuntu 14.04 64b):
 ``` bash
 dm@Z580:~$ dpkg --get-selections | grep gvfs
-gvfs:amd64					    install
-gvfs-backends					install
-gvfs-bin					    install
-gvfs-common					    install
-gvfs-daemons					install
-gvfs-fuse					    install
-gvfs-libs:amd64					install
+gvfs:amd64             install
+gvfs-backends          install
+gvfs-bin               install
+gvfs-common            install
+gvfs-daemons           install
+gvfs-fuse              install
+gvfs-libs:amd64        install
 ```
 Utilities as:
  * gvfs-ls
@@ -27,16 +27,16 @@ Utilities as:
  * gvfs-rm
  * gvfs-mkdir
  * gvfs-mount
- 
+
 *must* be present on your system and executable from the terminal.
 
 ### mtp
 Here is a list of mtp related packages I have installed on my system (Ubuntu 14.04 64b):
 ``` bash
 dm@Z580:~$ dpkg --get-selections | grep mtp
-libmtp-common					install
-libmtp-runtime					install
-libmtp9:amd64					install
+libmtp-common          install
+libmtp-runtime         install
+libmtp9:amd64          install
 ```
 
 ## Installation

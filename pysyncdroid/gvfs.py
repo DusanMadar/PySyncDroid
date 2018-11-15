@@ -14,7 +14,7 @@ def cp(src, dst):
     :type dst: str
 
     """
-    run_bash_cmd(['gvfs-copy', src, dst])
+    run_bash_cmd(["gvfs-copy", src, dst])
 
 
 def mkdir(path):
@@ -27,7 +27,7 @@ def mkdir(path):
     :type path: str
 
     """
-    run_bash_cmd(['gvfs-mkdir', '-p', path])
+    run_bash_cmd(["gvfs-mkdir", "-p", path])
 
 
 def mount(mtp_url):
@@ -38,7 +38,7 @@ def mount(mtp_url):
     :type mtp_url: str
 
     """
-    run_bash_cmd(['gvfs-mount', mtp_url])
+    run_bash_cmd(["gvfs-mount", mtp_url])
 
 
 def mv(src, dst):
@@ -65,4 +65,4 @@ def rm(src):
     :type src: str
 
     """
-    run_bash_cmd(['gvfs-rm', '-f', src])
+    run_bash_cmd(["gvfs-rm", "-f", src])

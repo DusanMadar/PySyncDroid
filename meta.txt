@@ -1,4 +1,3 @@
 == How to get unittests coverage ==
-python -m unittest discover -s tests/
-coverage run -m unittest discover -s tests/
-coverage report -m --include=pysyncdroid*
+python -m unittest discover
+coverage run -m unittest discover; coverage report -m --include=pysyncdroid*
