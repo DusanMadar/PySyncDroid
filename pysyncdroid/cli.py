@@ -12,80 +12,91 @@ from pysyncdroid.find_device import get_connection_details, get_mtp_details
 from pysyncdroid.sync import Sync, IGNORE, REMOVE, SYNCHRONIZE
 
 
-parser = argparse.ArgumentParser()
+def create_parser():
+    parser = argparse.ArgumentParser()
 
-# device info
-parser.add_argument("-V", "--vendor", required=True, help="Device vendor name")
-parser.add_argument("-M", "--model", required=True, help="Device model name")
+    # device info
+    parser.add_argument(
+        "-V", "--vendor", required=True, help="Device vendor name"
+    )
+    parser.add_argument(
+        "-M", "--model", required=True, help="Device model name"
+    )
 
-# sync info
-parser.add_argument("-s", "--source", help="Source directory")
-parser.add_argument("-d", "--destination", help="Destination directory")
-parser.add_argument(
-    "-f", "--file", help="Source to destination mapping file absolute path"
-)
+    # sync info
+    parser.add_argument("-s", "--source", help="Source directory")
+    parser.add_argument("-d", "--destination", help="Destination directory")
+    parser.add_argument(
+        "-f", "--file", help="Source to destination mapping file absolute path"
+    )
 
-# optional arguments
-parser.add_argument(
-    "-v",
-    "--verbose",
-    action="store_true",
-    default=False,
-    help="Display actions; not used by default",
-)
-parser.add_argument(
-    "-u",
-    "--unmatched",
-    choices=[IGNORE, REMOVE, SYNCHRONIZE],
-    help="Unmatched files action; ignoring by default",
-    default=IGNORE,
-)
-parser.add_argument(
-    "-o",
-    "--overwrite",
-    action="store_true",
-    default=False,
-    help="Overwrite existing files; not used by default",
-)
-parser.add_argument(
-    "-i",
-    "--ignore-file-type",
-    nargs="+",
-    default=None,
-    help="Ignored file type(s), e.g. html, txt, ...",
-)
+    # optional arguments
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Display actions; not used by default",
+    )
+    parser.add_argument(
+        "-u",
+        "--unmatched",
+        choices=[IGNORE, REMOVE, SYNCHRONIZE],
+        help="Unmatched files action; ignoring by default",
+        default=IGNORE,
+    )
+    parser.add_argument(
+        "-o",
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Overwrite existing files; not used by default",
+    )
+    parser.add_argument(
+        "-i",
+        "--ignore-file-type",
+        nargs="+",
+        default=None,
+        help="Ignored file type(s), e.g. html, txt, ...",
+    )
+
+    return parser
 
 
-def parse_sync_mapping_file(sync_mapping_file, sources, destinations):
+def parse_sync_mapping_file(sync_mapping_file):
     """
     Parse sync mapping file.
 
     :argument sync_mapping_file: Sync mapping file absolute path
     :type sync_mapping_file: str
-    :argument sources: list of sources
-    :type sources: list
-    :argument destinations: list of destinations
-    :type destinations: list
+
+    :returns tuple
 
     """
+    sources = []
+    destinations = []
+    src_dst_separator = "==>"
+
     with open(sync_mapping_file, "r") as f:
         mapping_lines = f.readlines()
 
     for line in mapping_lines:
-        line = line.replace("\n", "")
+        line = line.strip()
         if not line:
             continue
 
-        source, destination = line.split("==>")
-        if not source or not destination:
+        if src_dst_separator not in line:
             raise MappingFileException(
                 "Please separate source and destination"
                 'with "==>".\n'
                 'Problematic line: "{}"'.format(line)
             )
 
+        source, destination = line.split(src_dst_separator)
         sources.append(source)
         destinations.append(destination)
+
+    return sources, destinations
 
 
 def parse_sync_info(args):
@@ -123,24 +134,29 @@ def parse_sync_info(args):
                 "from file (-f).",
             )
 
-        parse_sync_mapping_file(args.file, sources, destinations)
+        sources, destinations = parse_sync_mapping_file(args.file)
 
     return sources, destinations
 
 
-def main():
-    args = parser.parse_args()
+def main(args):
+    """
+    Run pysyncdroid.
 
+    :argument args: command line arguments namespace
+    :type args: object
+
+    """
     try:
         usb_bus_id, device_id = get_connection_details(args.vendor, args.model)
         mtp_details = get_mtp_details(usb_bus_id, device_id)
     except DeviceException as exc:
-        return exc.message
+        return str(exc)
 
     try:
         sources, destinations = parse_sync_info(args)
     except (argparse.ArgumentError, MappingFileException) as exc:
-        return exc.message
+        return str(exc)
 
     for source, destination in zip(sources, destinations):
         source = source.strip()
@@ -162,5 +178,11 @@ def main():
         sync.sync()
 
 
-if __name__ == "__main__":
-    main()
+def run():
+    if __name__ == "__main__":
+        parser = create_parser()
+        args = parser.parse_args()
+        main(args)
+
+
+run()
