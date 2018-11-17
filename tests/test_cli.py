@@ -1,6 +1,8 @@
 from argparse import ArgumentError
+import getpass
 from io import StringIO
 import os
+import pwd
 import sys
 import tempfile
 import unittest
@@ -151,10 +153,13 @@ class TestCli(unittest.TestCase):
             "from file (-f).",
         )
 
-    def test_main_device_exception(self):
+    @patch("pysyncdroid.find_device.lsusb")
+    def test_main_device_exception(self, mock_lsusb):
         """
         Test `DeviceException` exception is handled.
         """
+        mock_lsusb.return_value = ""
+
         cmd = "-M model -V vendor -s /src -d /dst".split(" ")
         args = self.parser.parse_args(cmd)
 
@@ -210,7 +215,8 @@ class TestCli(unittest.TestCase):
             ignore_file_types=None,
             mtp_details=(
                 "mtp://[usb:usb_bus_id,device_id]/",
-                "/run/user/1000/gvfs/mtp:host=%5Busb%3Ausb_bus_id%2Cdevice_id%5D",  # noqa
+                "/run/user/{}/gvfs/mtp:host=%5Busb%3Ausb_bus_id%2C"
+                "device_id%5D".format(pwd.getpwnam(getpass.getuser()).pw_uid),
             ),
             overwrite_existing=True,
             source="/src",
