@@ -11,7 +11,7 @@ description = (
 
 
 setup(
-    version="0.0.2",
+    version="1.0.0",
     name="pysyncdroid",
     url="https://github.com/DusanMadar/PySyncDroid",
     author="Dusan Madar",
