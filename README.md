@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/DusanMadar/PySyncDroid.svg?branch=master)](https://travis-ci.org/DusanMadar/PySyncDroid)
 [![Coverage Status](https://coveralls.io/repos/github/DusanMadar/PySyncDroid/badge.svg?branch=master)](https://coveralls.io/github/DusanMadar/PySyncDroid?branch=master)
+[![PyPI version](https://badge.fury.io/py/pysyncdroid.svg)](https://badge.fury.io/py/pysyncdroid)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 # PySyncDroid
