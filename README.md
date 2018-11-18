@@ -1,4 +1,6 @@
 [![Build Status](https://travis-ci.org/DusanMadar/PySyncDroid.svg?branch=master)](https://travis-ci.org/DusanMadar/PySyncDroid)
+[![Coverage Status](https://coveralls.io/repos/github/DusanMadar/PySyncDroid/badge.svg?branch=master)](https://coveralls.io/github/DusanMadar/PySyncDroid?branch=master)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 # PySyncDroid
 PySyncDroid is a Python 3 powered CLI tool providing a simple way to synchronize an Android device connected to a Linux PC via MTP over USB.
