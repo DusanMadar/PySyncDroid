@@ -7,8 +7,16 @@ before_install:
   - sudo apt-get update
   - sudo apt-get install -y gvfs gvfs-backends gvfs-bin gvfs-common gvfs-daemons gvfs-fuse gvfs-libs
 
+install:
+  - pip install coveralls
+
 script:
   - python setup.py test
+  - coverage run -m unittest discover
+  - coverage report -m --include=pysyncdroid*
+
+after_success:
+  - coveralls
 
 notifications:
   email: false
