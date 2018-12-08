@@ -139,7 +139,7 @@ def parse_sync_info(args):
     return sources, destinations
 
 
-def main(args):
+def run(args):
     """
     Run pysyncdroid.
 
@@ -178,11 +178,7 @@ def main(args):
         sync.sync()
 
 
-def run():
-    if __name__ == "__main__":
-        parser = create_parser()
-        args = parser.parse_args()
-        main(args)
-
-
-run()
+def main():
+    parser = create_parser()
+    args = parser.parse_args()
+    run(args)

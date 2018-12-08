@@ -154,7 +154,7 @@ class TestCli(unittest.TestCase):
         )
 
     @patch("pysyncdroid.find_device.lsusb")
-    def test_main_device_exception(self, mock_lsusb):
+    def test_run_device_exception(self, mock_lsusb):
         """
         Test `DeviceException` exception is handled.
         """
@@ -164,12 +164,12 @@ class TestCli(unittest.TestCase):
         args = self.parser.parse_args(cmd)
 
         self.assertEqual(
-            cli.main(args),
+            cli.run(args),
             'Device "vendor model" not found.\nNo "vendor" devices were found.',  # noqa
         )
 
     @patch("pysyncdroid.cli.get_connection_details")
-    def test_main_sync_info_exception(self, mock_get_connection_details):
+    def test_run_sync_info_exception(self, mock_get_connection_details):
         """
         Test exceptions raised by `parse_sync_info` is handled.
         """
@@ -179,7 +179,7 @@ class TestCli(unittest.TestCase):
         args = self.parser.parse_args(cmd)
 
         self.assertEqual(
-            cli.main(args),
+            cli.run(args),
             "Source (-s) and destination (-d) cannot be set when syncing "
             "from file (-f).",
         )
@@ -190,7 +190,7 @@ class TestCli(unittest.TestCase):
     @patch("pysyncdroid.sync.Sync.__init__")
     @patch("pysyncdroid.cli.get_connection_details")
     @patch("pysyncdroid.cli.parse_sync_info")
-    def test_main(
+    def test_run(
         self,
         mock_parse_sync_info,
         mock_get_connection_details,
@@ -208,7 +208,7 @@ class TestCli(unittest.TestCase):
 
         cmd = "-M model -V vendor -s /src -d /dst -ov".split(" ")
         args = self.parser.parse_args(cmd)
-        cli.main(args)
+        cli.run(args)
 
         mock_sync_init.assert_called_once_with(
             destination="/dst",
@@ -228,8 +228,8 @@ class TestCli(unittest.TestCase):
         mock_sync_sync.assert_called_once_with()
 
     @patch("pysyncdroid.cli.create_parser")
-    @patch("pysyncdroid.cli.main")
-    def test_run(self, mock_main, mock_create_parser):
+    @patch("pysyncdroid.cli.run")
+    def test_main(self, mock_run, mock_create_parser):
         """
         Test running `cli` module as script.
         """
@@ -238,9 +238,8 @@ class TestCli(unittest.TestCase):
         cmd = "-M model -V vendor -s /src -d /dst".split(" ")
         args = self.parser.parse_args(cmd)
 
-        with patch("pysyncdroid.cli.__name__", "__main__"):
-            # Credits: https://stackoverflow.com/a/8660290/4183498.
-            sys.argv[1:] = cmd
-            cli.run()
+        # Credits: https://stackoverflow.com/a/8660290/4183498.
+        sys.argv[1:] = cmd
+        cli.main()
 
-        mock_main.assert_called_once_with(args)
+        mock_run.assert_called_once_with(args)
