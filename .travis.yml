@@ -14,6 +14,7 @@ script:
   - python setup.py test
   - coverage run -m unittest discover
   - coverage report -m --include=pysyncdroid*
+  - bash tests/test_cli.sh
 
 after_success:
   - coveralls
