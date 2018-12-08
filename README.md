@@ -8,6 +8,12 @@ PySyncDroid is a Python 3 powered CLI tool providing a simple way to synchronize
 
 No special setup is required for the Android device.
 
+## Installation
+
+```
+pip install pysyncdroid
+```
+
 ## System requirements
 PySyncDroid leverages `lsusb`, `gvfs`, `mtp` and `readlink`.
 
@@ -44,15 +50,6 @@ libmtp-runtime         install
 libmtp9:amd64          install
 ```
 
-## Installation
-Run following commands in your terminal to download, extract and install PySyncDroid:
-``` bash
-cd ~/Downloads
-wget https://github.com/DusanMadar/PySyncDroid/archive/master.zip -O PySyncDroid.zip
-unzip PySyncDroid.zip
-cd PySyncDroid-master/
-python setup.py install
-```
 ## Usage
 1. Connect your Android device with an USB cable to your computer
 2. Unlock your device to notify the computer about its presence
