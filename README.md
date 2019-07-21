@@ -10,7 +10,7 @@ No special setup is required for the Android device.
 
 ## Installation
 
-```
+```bash
 pip install pysyncdroid
 ```
 
@@ -22,7 +22,7 @@ Make sure you have `lsusb` installed on your computer as it is used to discover 
 
 ### gvfs
 Here is a list of gvfs related packages I have installed on my system (Ubuntu 14.04 64b):
-``` bash
+```console
 dm@Z580:~$ dpkg --get-selections | grep gvfs
 gvfs:amd64             install
 gvfs-backends          install
@@ -43,7 +43,7 @@ Utilities as:
 
 ### mtp
 Here is a list of mtp related packages I have installed on my system (Ubuntu 14.04 64b):
-``` bash
+```console
 dm@Z580:~$ dpkg --get-selections | grep mtp
 libmtp-common          install
 libmtp-runtime         install
@@ -61,21 +61,21 @@ libmtp9:amd64          install
 
 ### Examples
 For more details about how to use PySyncDroid and what options are available
-``` bash
+```console
 dm@Z580:~/Desktop$ pysyncdroid -h
 ```
 Synchronize contents of the *Rock* directory from computer to the device (`vendor` and `model` names are *case insensitive*)
-``` bash
+```console
 dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -s ~/Music/Rock -d Card/Music/Rock
 ```
 Synchronize contents of the *Music* directory from the device to computer, removing unmatched files (i.e. files, which are present only on computer, but not on the device) and overwriting existing files. Also, display what is going on (notice the `-v` flag).
 Child directories are automaticaly created in the destination directory (*~/Music*, in this case) as necessary.
-``` bash
+```console
 dm@Z580:~$ pysyncdroid -ov -V samsung -M gt-i9300 -s Phone/Music -d Music -u remove
 ```
 
 Provide a mapping file (see `src2dest_example.txt` for the file structure) if you need to synchronize more than a single directory.
-``` bash
+```console
 dm@Z580:~/Desktop$ pysyncdroid -V samsung -M gt-i9300 -f /home/dm/Desktop/src2dest_example.txt -v
 ```
 
